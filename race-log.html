@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>メモ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --water-deep:#0A1F26;
+    --water-mid:#12313A;
+    --water-card:#163943;
+    --water-line:#264A54;
+    --foam:#EAF3F0;
+    --foam-dim:#8FADA9;
+    --buoy-gold:#D9A441;
+    --buoy-gold-dim:#8a6c30;
+    --danger:#E4463A;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0;}
+  body{
+    background:radial-gradient(ellipse at 50% -10%, #1a4550 0%, transparent 60%), var(--water-deep);
+    color:var(--foam); font-family:'Noto Sans JP', sans-serif;
+    min-height:100vh; padding-bottom:100px;
+  }
+  .tabular{font-variant-numeric: tabular-nums;}
+
+  header{
+    position:sticky; top:0; z-index:20;
+    background:linear-gradient(180deg, rgba(10,31,38,0.97) 78%, rgba(10,31,38,0.0));
+    backdrop-filter:blur(6px); padding:18px 18px 10px;
+  }
+  .brand{display:flex; align-items:baseline; justify-content:space-between;}
+  .brand h1{
+    font-family:'Oswald', sans-serif; font-weight:700; font-size:22px;
+    margin:0; letter-spacing:0.04em; color:var(--foam);
+  }
+  .brand h1 span{color:var(--buoy-gold);}
+  .brand .count{font-family:'Oswald', sans-serif; font-size:13px; color:var(--foam-dim);}
+  .tabs{display:flex; gap:8px; margin-top:14px;}
+  .tab-btn{
+    flex:1; padding:10px 6px; text-align:center;
+    background:transparent; border:1px solid var(--water-line);
+    border-radius:8px; color:var(--foam-dim);
+    font-family:'Oswald'; font-weight:600; font-size:13px; cursor:pointer;
+  }
+  .tab-btn.active{background:rgba(217,164,65,0.14); border-color:var(--buoy-gold-dim); color:var(--buoy-gold);}
+  .wave-rule{
+    height:2px; margin-top:14px;
+    background:repeating-linear-gradient(90deg, var(--buoy-gold) 0 10px, transparent 10px 16px);
+    opacity:0.6;
+  }
+  main{padding:14px 18px 0;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .add-btn{
+    width:100%; padding:14px; background:var(--buoy-gold); color:#241a05;
+    border:none; border-radius:10px; font-family:'Oswald'; font-weight:600;
+    font-size:15px; letter-spacing:0.03em; margin:16px 0; cursor:pointer;
+  }
+  .add-btn:active{transform:scale(0.98);}
+
+  .form-panel{
+    background:var(--water-card); border:1px solid var(--water-line);
+    border-radius:14px; padding:18px; margin-bottom:20px; display:none;
+  }
+  .form-panel.open{display:block;}
+  .form-panel h2{font-family:'Oswald'; font-size:16px; margin:0 0 14px; color:var(--buoy-gold);}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12px; color:var(--foam-dim); margin-bottom:6px; font-weight:500;}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  input[type=text], input[type=date], select, textarea{
+    width:100%; background:var(--water-mid); border:1px solid var(--water-line);
+    color:var(--foam); border-radius:8px; padding:10px 12px;
+    font-family:'Noto Sans JP'; font-size:14px;
+  }
+  input:focus, select:focus, textarea:focus{outline:none; border-color:var(--buoy-gold);}
+  textarea{resize:vertical; min-height:60px; line-height:1.8;}
+
+  .form-actions{display:flex; gap:10px; margin-top:6px;}
+  .btn-save{
+    flex:1; padding:12px; background:var(--buoy-gold); color:#241a05;
+    border:none; border-radius:8px; font-family:'Oswald'; font-weight:600; font-size:14px; cursor:pointer;
+  }
+  .btn-cancel{
+    padding:12px 18px; background:transparent; color:var(--foam-dim);
+    border:1px solid var(--water-line); border-radius:8px; cursor:pointer; font-size:13px;
+  }
+
+  .empty{text-align:center; color:var(--foam-dim); padding:40px 20px; font-size:14px; line-height:1.8;}
+  .setup-entry{
+    background:var(--water-card); border:1px solid var(--water-line);
+    border-radius:12px; margin-bottom:12px; overflow:hidden;
+  }
+  .setup-head{display:flex; align-items:center; gap:12px; padding:12px 14px; cursor:pointer;}
+  .meta{flex:1; min-width:0;}
+  .title{font-weight:700; font-size:15px; color:var(--foam);}
+  .sub{font-size:12px; color:var(--foam-dim); margin-top:3px;}
+  .chevron{color:var(--foam-dim); font-size:12px; transition:transform .2s;}
+  .setup-entry.open .chevron{transform:rotate(180deg);}
+  .setup-body{display:none; padding:0 14px 16px; border-top:1px solid var(--water-line);}
+  .setup-entry.open .setup-body{display:block;}
+  .entry-actions{display:flex; gap:10px; margin-top:16px;}
+  .entry-actions button{
+    font-size:12.5px; padding:8px 14px; border-radius:7px; cursor:pointer;
+    border:1px solid var(--water-line); background:transparent; color:var(--foam-dim);
+  }
+  .entry-actions .del{color:var(--danger); border-color:#5a2a26;}
+  .loading{text-align:center; padding:40px; color:var(--foam-dim); font-size:13px;}
+
+  /* メモ全文：日ごとの見出しを目立たせる */
+  .note-body{margin-top:14px;}
+  .day-block{margin-bottom:14px;}
+  .day-head{
+    font-family:'Oswald'; font-weight:600; font-size:13px;
+    color:var(--buoy-gold); letter-spacing:0.03em;
+    padding:4px 0 6px; border-bottom:1px solid rgba(217,164,65,0.25); margin-bottom:8px;
+  }
+  .day-text{font-size:13.5px; line-height:1.95; white-space:pre-wrap; word-break:break-word; color:var(--foam);}
+  mark{background:rgba(217,164,65,0.35); color:#fff; border-radius:2px;}
+
+  .searchbar{margin-bottom:12px;}
+  .searchbar input[type=text]{
+    background:var(--water-mid); border:1px solid var(--water-line);
+    padding:11px 12px; font-size:14px;
+  }
+  .filter-row{display:flex; gap:8px; margin-top:8px;}
+  .filter-row select{flex:1; padding:9px 10px; font-size:13px; background:var(--water-mid);}
+  .filter-status{
+    font-size:11.5px; color:var(--foam-dim); margin:10px 2px 4px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .clear-link{color:var(--buoy-gold); cursor:pointer; font-size:11.5px;}
+
+  .import-box{
+    border:1px dashed var(--buoy-gold-dim); border-radius:10px;
+    padding:14px; margin-bottom:16px; background:rgba(217,164,65,0.05);
+  }
+  .import-box .hint{font-size:12px; color:var(--foam-dim); line-height:1.7; margin-bottom:10px;}
+  .import-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .btn-mini{
+    padding:9px 12px; font-size:12.5px; border-radius:7px; cursor:pointer;
+    background:rgba(217,164,65,0.16); color:var(--buoy-gold);
+    border:1px solid var(--buoy-gold-dim); font-weight:500;
+  }
+  .btn-mini:disabled{opacity:0.5;}
+  .import-status{font-size:12px; color:var(--foam-dim); margin-top:10px; line-height:1.6;}
+  .thumbs{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;}
+  .thumbs img{width:52px; height:52px; object-fit:cover; border-radius:6px; border:1px solid var(--water-line);}
+  .tagline{
+    display:inline-block; font-size:11px; padding:2px 7px; border-radius:20px;
+    background:var(--water-mid); color:var(--foam-dim); margin:0 5px 5px 0;
+    border:1px solid var(--water-line);
+  }
+
+  .venue-list{display:flex; flex-direction:column; gap:8px;}
+  .venue-row{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--water-card); border:1px solid var(--water-line);
+    border-radius:10px; padding:13px 16px; cursor:pointer;
+  }
+  .venue-row .vname{font-family:'Oswald'; font-weight:600; font-size:15px; color:var(--foam);}
+  .venue-row.empty-venue .vname{color:var(--foam-dim);}
+  .venue-row .vcount{
+    font-family:'Oswald'; font-size:12px; color:var(--buoy-gold);
+    background:rgba(217,164,65,0.12); border:1px solid var(--buoy-gold-dim);
+    border-radius:20px; padding:2px 9px; min-width:22px; text-align:center;
+  }
+  .venue-row .vcount.zero{color:var(--foam-dim); background:transparent; border-color:var(--water-line);}
+  .back-row{display:flex; align-items:center; gap:10px; margin-bottom:14px; cursor:pointer;}
+  .back-row .arrow{font-family:'Oswald'; font-size:14px; color:var(--buoy-gold);}
+  .vtitle{font-family:'Oswald'; font-weight:700; font-size:19px; color:var(--foam);}
+
+  .backup-box{
+    margin:28px 0 10px; padding:16px;
+    border:1px solid var(--water-line); border-radius:12px;
+    background:rgba(255,255,255,0.02);
+  }
+  .backup-box .backup-title{
+    font-family:'Oswald'; font-weight:600; font-size:14px;
+    color:var(--foam-dim); letter-spacing:0.03em; margin-bottom:10px;
+  }
+  .backup-box .hint{font-size:12px; color:var(--foam-dim); line-height:1.75; margin-bottom:12px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1><span>メモ</span></h1>
+    <div class="count tabular" id="entryCount">0 件</div>
+  </div>
+  <div class="tabs">
+    <button class="tab-btn active" id="tabSearch" type="button">メモ検索</button>
+    <button class="tab-btn" id="tabVenue" type="button">レース場</button>
+  </div>
+  <div class="wave-rule"></div>
+</header>
+
+<main>
+<div class="view active" id="viewSearch">
+  <button class="add-btn" id="toggleSetupFormBtn">＋ メモを追加</button>
+
+  <div class="form-panel" id="setupFormPanel">
+    <h2 id="setupFormTitle">メモを追加</h2>
+
+    <div class="import-box">
+      <div class="hint">
+        「写真を貼り付ける」を押して<br>
+        スマホやPCなどに書いているメモのスクショを貼り付けるか、<br>
+        手書きノートの写真を撮って貼り付けてください。<br>
+        写真を貼り付けたら「写真を読み取る」を押してください。<br><br>
+        写真を読み取ると貼り付けた内容を読み取り、メモ本文に文字を書き起こします。<br>
+        メモ本文の内容からレース場・日付・気温・気圧などを自動で振り分けます。<br><br>
+        「メモ本文」内に手入力でメモを書いてもOKです
+      </div>
+      <div class="import-actions">
+        <button class="btn-mini" id="pickImgBtn" type="button">📷 写真を貼り付ける</button>
+        <button class="btn-mini" id="analyzeBtn" type="button">✨ 写真を読み取る</button>
+      </div>
+      <input type="file" id="imgInput" accept="image/*" multiple style="display:none">
+      <div class="thumbs" id="thumbs"></div>
+      <div class="import-status" id="importStatus"></div>
+    </div>
+
+    <div class="field">
+      <label>メモ本文</label>
+      <textarea id="s_body" style="min-height:320px;" placeholder="ここにメモを書く、または写真から文章を読み取る"></textarea>
+    </div>
+
+    <div class="row2">
+      <div class="field"><label>レース場</label><input type="text" id="s_venue" placeholder="例: 児島" list="venueDatalist"></div>
+      <div class="field"><label>開催期間</label><input type="text" id="s_period" placeholder="例: 2026.6/30-7/5"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>開始日(検索用)</label><input type="date" id="s_date"></div>
+      <div class="field"><label>エンジン</label><input type="text" id="s_engine" placeholder="例: 49号機"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>気温</label><input type="text" id="s_temp" placeholder="例: 22-26℃"></div>
+      <div class="field"><label>気圧</label><input type="text" id="s_press" placeholder="例: 1005-1010hPa"></div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn-save" id="setupSaveBtn">保存する</button>
+      <button class="btn-cancel" id="setupCancelBtn">キャンセル</button>
+    </div>
+  </div>
+
+  <div class="searchbar">
+    <input type="text" id="searchInput" placeholder="🔍 キーワード検索(ペラ、整備内容、場名など)">
+    <div class="filter-row">
+      <select id="filterMonth"><option value="">全期間</option></select>
+    </div>
+    <div class="filter-status">
+      <span id="filterCount"></span>
+      <span class="clear-link" id="clearFilter">条件をクリア</span>
+    </div>
+  </div>
+
+  <div id="setupListArea"><div class="loading">読み込み中…</div></div>
+
+  <div class="backup-box">
+    <div class="backup-title">バックアップ</div>
+    <div class="hint">
+      機種変更やブラウザのデータ消去に備えて、記録をファイルに書き出せます。<br>
+      新しい端末では、書き出したファイルを「読み込む」で元に戻せます。
+    </div>
+    <div class="import-actions">
+      <button class="btn-mini" id="exportBtn" type="button">⬇️ バックアップを書き出す</button>
+      <button class="btn-mini" id="importBtn" type="button">⬆️ バックアップを読み込む</button>
+    </div>
+    <input type="file" id="backupInput" accept=".json,application/json" style="display:none">
+    <div class="import-status" id="backupStatus"></div>
+  </div>
+</div>
+
+<div class="view" id="viewVenue">
+  <div id="venueListWrap"><div class="venue-list" id="venueList"></div></div>
+  <div id="venueDetailWrap" style="display:none;">
+    <div class="back-row" id="venueBackBtn"><span class="arrow">← 一覧に戻る</span></div>
+    <div class="vtitle" id="venueDetailTitle" style="margin-bottom:14px;"></div>
+    <div id="venueDetailList"></div>
+  </div>
+</div>
+</main>
+
+<datalist id="venueDatalist"></datalist>
+
+<script>
+const ALL_VENUES = [
+  '桐生','戸田','江戸川','平和島','多摩川','浜名湖','蒲郡','常滑',
+  '津','三国','びわこ','住之江','尼崎','鳴門','丸亀','児島',
+  '宮島','徳山','下関','若松','芦屋','福岡','唐津','大村'
+];
+const DAY_MARKERS = ['受領時','受領','前検','初日','2日目','二日目','3日目','三日目','4日目','四日目','5日目','五日目','6日目','六日目','最終日','準優','優勝戦','ペラ','スタート','エンジン','調整'];
+
+let setupEntries = [];
+let editingSetupId = null;
+let pendingImages = [];
+let browsingVenue = null;
+
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function genId(p){ return p + Date.now() + Math.floor(Math.random()*1000); }
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function highlight(text, q){
+  const safe = escapeHtml(text);
+  if(!q) return safe;
+  try{
+    const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi');
+    return safe.replace(re, m => '<mark>' + m + '</mark>');
+  }catch(e){ return safe; }
+}
+function bind(root, sel, evt, fn){ root.querySelectorAll(sel).forEach(n=>n.addEventListener(evt, fn)); }
+function venueMatch(entry, name){
+  if(!entry.venue) return false;
+  return entry.venue === name || entry.venue.includes(name) || name.includes(entry.venue);
+}
+
+/* 本文を「前検」「初日」などの区切りごとのブロックに分けて表示する */
+function isDayHeading(line){
+  const t = line.trim();
+  if(!t || t.length > 24) return false;
+  return DAY_MARKERS.some(m => t === m || t.startsWith(m + ' ') || t.startsWith(m + '　') ||
+    t === m + ':' || t === m + '：' || t.startsWith(m + ':') || t.startsWith(m + '：'));
+}
+function renderBodyBlocks(body, q){
+  const lines = String(body||'').split('\n');
+  const blocks = [];
+  let cur = { head:null, lines:[] };
+  lines.forEach(line=>{
+    if(isDayHeading(line)){
+      if(cur.head || cur.lines.some(l=>l.trim())) blocks.push(cur);
+      cur = { head: line.trim(), lines: [] };
+    }else{
+      cur.lines.push(line);
+    }
+  });
+  if(cur.head || cur.lines.some(l=>l.trim())) blocks.push(cur);
+
+  return blocks.map(b=>{
+    const text = b.lines.join('\n').replace(/^\n+|\n+$/g,'');
+    return `<div class="day-block">
+      ${b.head ? `<div class="day-head">${highlight(b.head,q)}</div>` : ''}
+      ${text.trim() ? `<div class="day-text">${highlight(text,q)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+/* 旧バージョンのデータ（ペラ情報／整備内容が別欄）を本文にまとめる */
+function migrate(e){
+  if(e.body && e.body.trim()){
+    const isAuto = /^レース場:\s/.test(e.body.trim()) &&
+      (e.body.includes('【ペラ】') || e.body.includes('【整備・調整】'));
+    if(!isAuto) return e;
+  }
+  const parts = [];
+  if(e.maint) parts.push(e.maint);
+  if(e.prop) parts.push('ペラ\n' + e.prop);
+  if(parts.length) e.body = parts.join('\n\n');
+  return e;
+}
+
+/* ================= TABS ================= */
+document.getElementById('tabSearch').addEventListener('click', ()=>switchTab('search'));
+document.getElementById('tabVenue').addEventListener('click', ()=>switchTab('venue'));
+function switchTab(which){
+  const s = which === 'search';
+  document.getElementById('tabSearch').classList.toggle('active', s);
+  document.getElementById('tabVenue').classList.toggle('active', !s);
+  document.getElementById('viewSearch').classList.toggle('active', s);
+  document.getElementById('viewVenue').classList.toggle('active', !s);
+  if(!s){ browsingVenue = null; renderVenueTab(); }
+}
+
+/* ================= LOAD ================= */
+async function loadSetup(){
+  try{
+    const res = await window.storage.list('setup:', false);
+    const keys = (res && res.keys) ? res.keys : [];
+    const loaded = [];
+    for(const k of keys){
+      try{ const it = await window.storage.get(k,false); if(it&&it.value) loaded.push(migrate(JSON.parse(it.value))); }catch(e){}
+    }
+    loaded.sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.createdAt-a.createdAt));
+    setupEntries = loaded;
+  }catch(e){ setupEntries = []; }
+  rebuildFilters();
+  renderSetup();
+  renderVenueTab();
+  document.getElementById('venueDatalist').innerHTML =
+    ALL_VENUES.map(v=>`<option value="${escapeHtml(v)}">`).join('');
+}
+
+function rebuildFilters(){
+  const mSel = document.getElementById('filterMonth');
+  const curM = mSel.value;
+  const months = [...new Set(setupEntries.map(e=>(e.date||'').slice(0,7)).filter(Boolean))].sort().reverse();
+  mSel.innerHTML = '<option value="">全期間</option>' +
+    months.map(m=>{ const [y,mo]=m.split('-'); return `<option value="${m}">${y}年${Number(mo)}月</option>`; }).join('');
+  mSel.value = months.includes(curM) ? curM : '';
+}
+
+/* ================= SEARCH ================= */
+function getFiltered(){
+  const q = document.getElementById('searchInput').value.trim();
+  const m = document.getElementById('filterMonth').value;
+  const ql = q.toLowerCase();
+  return setupEntries.filter(e=>{
+    if(m && (e.date||'').slice(0,7) !== m) return false;
+    if(!q) return true;
+    const hay = [e.venue,e.period,e.date,e.engine,e.temp,e.press,e.body]
+      .filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(ql);
+  });
+}
+
+function entryCardHtml(e, q){
+  const tags = [];
+  if(e.temp) tags.push('🌡 '+e.temp);
+  if(e.press) tags.push('📈 '+e.press);
+  if(e.engine) tags.push('⚙️ '+e.engine);
+  return `<div class="setup-entry" data-id="${e.id}">
+    <div class="setup-head" data-stoggle="1">
+      <div class="meta">
+        <div class="title">${highlight(e.venue||'(レース場未設定)', q)}</div>
+        <div class="sub">${escapeHtml(e.period || e.date || '日付未設定')}${e.engine?' ・ '+escapeHtml(e.engine):''}</div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+    <div class="setup-body">
+      ${tags.length?`<div style="margin-top:14px">${tags.map(t=>`<span class="tagline">${escapeHtml(t)}</span>`).join('')}</div>`:''}
+      <div class="note-body">${renderBodyBlocks(e.body, q)}</div>
+      <div class="entry-actions">
+        <button data-sedit="${e.id}">編集</button>
+        <button class="del" data-sdel="${e.id}">削除</button>
+      </div>
+    </div>
+  </div>`;
+}
+function bindCardEvents(el){
+  bind(el,'[data-stoggle]','click', function(){ this.closest('.setup-entry').classList.toggle('open'); });
+  bind(el,'[data-sedit]','click', function(ev){ ev.stopPropagation(); startEditSetup(this.getAttribute('data-sedit')); });
+  bind(el,'[data-sdel]','click', function(ev){ ev.stopPropagation(); deleteSetup(this.getAttribute('data-sdel')); });
+}
+
+function renderSetup(){
+  const el = document.getElementById('setupListArea');
+  document.getElementById('entryCount').textContent = setupEntries.length + ' 件';
+  const list = getFiltered();
+  const q = document.getElementById('searchInput').value.trim();
+  document.getElementById('filterCount').textContent =
+    setupEntries.length ? `${list.length} / ${setupEntries.length} 件を表示` : '';
+  if(!setupEntries.length){
+    el.innerHTML = '<div class="empty">まだメモがありません。<br>文章の貼り付け、またはスクショの読み取りで追加できます。</div>';
+    return;
+  }
+  if(!list.length){ el.innerHTML = '<div class="empty">条件に合う記録が見つかりませんでした。</div>'; return; }
+  el.innerHTML = list.map(e=>entryCardHtml(e,q)).join('');
+  bindCardEvents(el);
+}
+
+document.getElementById('searchInput').addEventListener('input', renderSetup);
+document.getElementById('filterMonth').addEventListener('change', renderSetup);
+document.getElementById('clearFilter').addEventListener('click', ()=>{
+  document.getElementById('searchInput').value='';
+  document.getElementById('filterMonth').value='';
+  renderSetup();
+});
+
+/* ================= VENUE TAB ================= */
+function renderVenueTab(){
+  if(browsingVenue){
+    document.getElementById('venueListWrap').style.display='none';
+    document.getElementById('venueDetailWrap').style.display='block';
+    renderVenueDetail();
+  }else{
+    document.getElementById('venueListWrap').style.display='block';
+    document.getElementById('venueDetailWrap').style.display='none';
+    renderVenueList();
+  }
+}
+function renderVenueList(){
+  const el = document.getElementById('venueList');
+  el.innerHTML = ALL_VENUES.map(v=>{
+    const count = setupEntries.filter(e=>venueMatch(e,v)).length;
+    return `<div class="venue-row ${count===0?'empty-venue':''}" data-venue="${escapeHtml(v)}">
+      <span class="vname">${escapeHtml(v)}</span>
+      <span class="vcount ${count===0?'zero':''}">${count}</span>
+    </div>`;
+  }).join('');
+  bind(el,'.venue-row','click', function(){
+    browsingVenue = this.getAttribute('data-venue');
+    renderVenueTab(); window.scrollTo({top:0,behavior:'smooth'});
+  });
+}
+function renderVenueDetail(){
+  document.getElementById('venueDetailTitle').textContent = browsingVenue;
+  const el = document.getElementById('venueDetailList');
+  const list = setupEntries.filter(e=>venueMatch(e,browsingVenue))
+    .sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.createdAt-a.createdAt));
+  if(!list.length){ el.innerHTML = '<div class="empty">まだ'+escapeHtml(browsingVenue)+'の記録がありません。</div>'; return; }
+  el.innerHTML = list.map(e=>entryCardHtml(e,'')).join('');
+  bindCardEvents(el);
+}
+document.getElementById('venueBackBtn').addEventListener('click', ()=>{ browsingVenue=null; renderVenueTab(); });
+
+/* ================= FORM ================= */
+const SFIELDS = ['s_body','s_venue','s_period','s_engine','s_temp','s_press'];
+function resetSetupForm(){
+  SFIELDS.forEach(i=>document.getElementById(i).value='');
+  document.getElementById('s_date').value = todayStr();
+  editingSetupId = null;
+  pendingImages = [];
+  document.getElementById('thumbs').innerHTML = '';
+  document.getElementById('importStatus').textContent = '';
+  document.getElementById('setupFormTitle').textContent = 'メモを追加';
+}
+function openSetupForm(){
+  document.getElementById('setupFormPanel').classList.add('open');
+  document.getElementById('toggleSetupFormBtn').style.display='none';
+}
+function closeSetupForm(){
+  document.getElementById('setupFormPanel').classList.remove('open');
+  document.getElementById('toggleSetupFormBtn').style.display='block';
+}
+function startEditSetup(id){
+  const e = setupEntries.find(x=>x.id===id); if(!e) return;
+  editingSetupId = id;
+  switchTab('search');
+  document.getElementById('setupFormTitle').textContent = 'メモを編集';
+  document.getElementById('s_body').value=e.body||'';
+  document.getElementById('s_venue').value=e.venue||'';
+  document.getElementById('s_period').value=e.period||'';
+  document.getElementById('s_date').value=e.date||todayStr();
+  document.getElementById('s_engine').value=e.engine||'';
+  document.getElementById('s_temp').value=e.temp||'';
+  document.getElementById('s_press').value=e.press||'';
+  pendingImages=[]; document.getElementById('thumbs').innerHTML='';
+  openSetupForm(); window.scrollTo({top:0,behavior:'smooth'});
+}
+/* 本文から基本情報を自動で拾う（API不要のローカル解析） */
+function parseBodyLocally(text){
+  const t = String(text||'');
+  const out = {};
+
+  // レース場：24場のいずれかが本文に出てくれば採用
+  const hit = ALL_VENUES.find(v => t.includes(v));
+  if(hit) out.venue = hit;
+
+  // 開催期間：2026.6/30-7/5 / 2026.6/21-24 / 2026/6/30〜7/5 など
+  const period = t.match(/(20\d{2})[.\/年]\s*(\d{1,2})[.\/月]\s*(\d{1,2})\s*[-–—~〜]\s*(\d{1,2})(?:[.\/月]\s*(\d{1,2}))?/);
+  if(period){
+    out.period = period[0].trim();
+    const y = period[1], m = String(period[2]).padStart(2,'0'), d = String(period[3]).padStart(2,'0');
+    out.date = `${y}-${m}-${d}`;
+  }else{
+    // 単独の日付表記
+    const single = t.match(/(20\d{2})[.\/年]\s*(\d{1,2})[.\/月]\s*(\d{1,2})/);
+    if(single){
+      out.period = single[0].trim();
+      out.date = `${single[1]}-${String(single[2]).padStart(2,'0')}-${String(single[3]).padStart(2,'0')}`;
+    }
+  }
+
+  // 気温：22-26℃ / 22℃
+  const temp = t.match(/-?\d{1,2}\s*(?:[-–—~〜]\s*-?\d{1,2}\s*)?(?:℃|°C|度)/i);
+  if(temp) out.temp = temp[0].replace(/\s+/g,'');
+
+  // 気圧：1005-1010hpa
+  const press = t.match(/\d{3,4}\s*(?:[-–—~〜]\s*\d{3,4}\s*)?(?:hpa|hPa|HPA|ヘクトパスカル)/i);
+  if(press) out.press = press[0].replace(/\s+/g,'');
+
+  // エンジン：49号機 36% / エンジン49号機
+  const eng = t.match(/(\d{1,3}\s*号機[^\n]{0,20})/);
+  if(eng) out.engine = eng[1].trim();
+
+  return out;
+}
+
+/* 空欄のみ、本文から拾った値で埋める */
+function applyLocalParse(){
+  const parsed = parseBodyLocally(document.getElementById('s_body').value);
+  const fill = (id, val) => {
+    const el = document.getElementById(id);
+    if(val && !el.value.trim()) el.value = val;
+  };
+  fill('s_venue', parsed.venue);
+  fill('s_period', parsed.period);
+  fill('s_engine', parsed.engine);
+  fill('s_temp', parsed.temp);
+  fill('s_press', parsed.press);
+  const dEl = document.getElementById('s_date');
+  if(parsed.date && (!dEl.value || dEl.value === todayStr())) dEl.value = parsed.date;
+  return parsed;
+}
+
+async function saveSetup(){
+  const g = id => document.getElementById(id).value.trim();
+  const body = document.getElementById('s_body').value;
+  if(!body.trim() && !g('s_venue')){ alert('メモ本文かレース場を入力してください。'); return; }
+
+  const btn=document.getElementById('setupSaveBtn'); btn.disabled=true; btn.textContent='保存中…';
+
+  // 空欄はまず本文から自動で拾う
+  applyLocalParse();
+
+  // それでもレース場が分からなければ、AIに整理してもらう
+  if(!g('s_venue') && body.trim()){
+    btn.textContent='情報を整理中…';
+    try{
+      const metaText = await callClaude([{ type:'text', text: META_PROMPT + body.slice(0, 3000) }]);
+      let clean = metaText.replace(/```json|```/g,'').trim();
+      const a = clean.indexOf('{'), b2 = clean.lastIndexOf('}');
+      if(a !== -1 && b2 !== -1){
+        const parsed = JSON.parse(clean.slice(a, b2+1));
+        const fill = (id,val)=>{ const el=document.getElementById(id); if(val && !el.value.trim()) el.value=val; };
+        fill('s_venue', parsed.venue);
+        fill('s_period', parsed.period);
+        fill('s_engine', parsed.engine);
+        fill('s_temp', parsed.temp);
+        fill('s_press', parsed.press);
+        const dEl = document.getElementById('s_date');
+        if(parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) && (!dEl.value || dEl.value === todayStr())) dEl.value = parsed.date;
+      }
+    }catch(err){ /* 取れなくても保存は続行 */ }
+    btn.textContent='保存中…';
+  }
+
+  const id = editingSetupId || genId('s');
+  const data = {
+    id, body, venue:g('s_venue'), period:g('s_period'),
+    date: document.getElementById('s_date').value || todayStr(),
+    engine:g('s_engine'), temp:g('s_temp'), press:g('s_press'),
+    createdAt: editingSetupId ? (setupEntries.find(x=>x.id===editingSetupId)||{}).createdAt||Date.now() : Date.now()
+  };
+  try{
+    if(!window.storage || typeof window.storage.set !== 'function'){      throw new Error('保存機能が使えません。Claudeアプリ内でこのアーティファクトを開いた状態でお試しください');
+    }
+    const result = await window.storage.set('setup:'+id, JSON.stringify(data), false);
+    if(!result) throw new Error('保存が拒否されました');
+    setupEntries = editingSetupId ? setupEntries.map(x=>x.id===id?data:x) : [data, ...setupEntries];
+    setupEntries.sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.createdAt-a.createdAt));
+    rebuildFilters(); renderSetup(); renderVenueTab(); closeSetupForm(); resetSetupForm();
+  }catch(e){
+    alert('保存に失敗しました。\n理由: ' + (e && e.message ? e.message : '不明なエラー'));
+  }finally{ btn.disabled=false; btn.textContent='保存する'; }
+}
+async function deleteSetup(id){
+  if(!confirm('このメモを削除しますか？')) return;
+  try{
+    await window.storage.delete('setup:'+id,false);
+    setupEntries=setupEntries.filter(x=>x.id!==id);
+    rebuildFilters(); renderSetup(); renderVenueTab();
+  }catch(e){ alert('削除に失敗しました。'); }
+}
+document.getElementById('toggleSetupFormBtn').addEventListener('click',()=>{ resetSetupForm(); openSetupForm(); });
+document.getElementById('setupCancelBtn').addEventListener('click',()=>{ closeSetupForm(); resetSetupForm(); });
+document.getElementById('setupSaveBtn').addEventListener('click', saveSetup);
+document.getElementById('s_body').addEventListener('blur', ()=>{ applyLocalParse(); });
+document.getElementById('s_body').addEventListener('paste', ()=>{ setTimeout(applyLocalParse, 60); });
+
+/* ================= IMAGE PICK ================= */
+document.getElementById('pickImgBtn').addEventListener('click', ()=>document.getElementById('imgInput').click());
+document.getElementById('imgInput').addEventListener('change', async (ev)=>{
+  const files = Array.from(ev.target.files || []).slice(0,6);
+  pendingImages = [];
+  const thumbs = document.getElementById('thumbs');
+  thumbs.innerHTML = '';
+  let fail = 0;
+  for(const f of files){
+    try{
+      const b64 = await fileToBase64(f);
+      pendingImages.push({ media_type:'image/jpeg', data:b64 });
+      const img = document.createElement('img');
+      img.src = 'data:image/jpeg;base64,' + b64;
+      thumbs.appendChild(img);
+    }catch(e){ fail++; }
+  }
+  document.getElementById('importStatus').textContent = pendingImages.length
+    ? pendingImages.length + '枚を選択しました。順番どおりに読み取ります。'
+    : (fail ? '画像の読み込みに失敗しました。' : '');
+  ev.target.value = '';
+});
+
+function fileToBase64(file){
+  return new Promise((res, rej)=>{
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 1400;
+        let { width, height } = img;
+        if(width > MAX_DIM || height > MAX_DIM){
+          const scale = MAX_DIM / Math.max(width, height);
+          width = Math.round(width*scale); height = Math.round(height*scale);
+        }
+        const c = document.createElement('canvas');
+        c.width=width; c.height=height;
+        const ctx=c.getContext('2d');
+        ctx.fillStyle='#fff'; ctx.fillRect(0,0,width,height);
+        ctx.drawImage(img,0,0,width,height);
+        res(c.toDataURL('image/jpeg',0.85).split(',')[1]);
+      };
+      img.onerror = ()=>rej(new Error('画像の読み込みに失敗しました'));
+      img.src = reader.result;
+    };
+    reader.onerror = ()=>rej(new Error('読み込み失敗'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ================= AUTO EXTRACTION ================= */
+async function callClaude(content){
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000, messages:[{ role:'user', content }] })
+  });
+  const data = await res.json();
+  if(!res.ok || data.error){
+    throw new Error((data.error && data.error.message) ? data.error.message : ('HTTPエラー ' + res.status));
+  }
+  const text = (data.content||[]).filter(i=>i.type==='text').map(i=>i.text).join('\n');
+  if(!text.trim()) throw new Error('応答が空でした');
+  return text;
+}
+
+const TRANSCRIBE_PROMPT = `このボートレーサーの整備メモ画像を、書かれている内容のまま文字起こししてください。
+・原文の順番、改行、行の区切りをそのまま保つこと
+・「前検」「初日」「2日目」「3日目」「最終日」「ペラ」「スタート」などの見出し行は、独立した1行として残すこと
+・数値、専門用語、記号（○、※、rpm、番、低 など）は一切変更しないこと
+・要約や説明、感想、コードフェンスは書かず、文字起こしの結果だけを出力すること
+・画面上部のアプリのタブや時刻表示など、メモ本文以外の部分は含めないこと`;
+
+const META_PROMPT = `以下のボートレーサーの整備メモから、基本情報だけをJSONで抽出してください。
+説明やコードフェンスは書かず、JSONオブジェクトのみを出力すること。
+
+{
+  "venue": "レース場名（例: 児島。不明なら空文字）",
+  "period": "開催期間の表記そのまま（例: 2026.6/30-7/5）",
+  "date": "開始日をYYYY-MM-DD形式で（不明なら空文字）",
+  "engine": "エンジン番号や成績（例: 49号機 36%）",
+  "temp": "気温の表記（例: 22-26℃）",
+  "press": "気圧の表記（例: 1005-1010hPa）"
+}
+
+--- メモ ---
+`;
+
+document.getElementById('analyzeBtn').addEventListener('click', async ()=>{
+  const pasted = document.getElementById('s_body').value.trim();
+  if(!pasted && !pendingImages.length){
+    alert('メモを貼り付けるか、スクリーンショットを選んでください。');
+    return;
+  }
+  const btn = document.getElementById('analyzeBtn');
+  const status = document.getElementById('importStatus');
+  btn.disabled = true; btn.textContent = '読み取り中…';
+
+  try{
+    let fullText = pasted;
+
+    // 画像は1枚ずつ文字起こしして、順番につなげる
+    if(pendingImages.length){
+      const chunks = [];
+      for(let i=0;i<pendingImages.length;i++){
+        status.textContent = `スクショを読み取り中… (${i+1}/${pendingImages.length})`;
+        const img = pendingImages[i];
+        const text = await callClaude([
+          { type:'image', source:{ type:'base64', media_type:img.media_type, data:img.data } },
+          { type:'text', text: TRANSCRIBE_PROMPT }
+        ]);
+        chunks.push(text.replace(/```/g,'').trim());
+      }
+      const joined = chunks.join('\n');
+      fullText = pasted ? (pasted + '\n\n' + joined) : joined;
+      document.getElementById('s_body').value = fullText;
+    }
+
+    // 基本情報を抽出
+    status.textContent = '基本情報を整理中…';
+    try{
+      const metaText = await callClaude([{ type:'text', text: META_PROMPT + fullText.slice(0, 3000) }]);
+      let clean = metaText.replace(/```json|```/g,'').trim();
+      const a = clean.indexOf('{'), b = clean.lastIndexOf('}');
+      if(a !== -1 && b !== -1){
+        const parsed = JSON.parse(clean.slice(a, b+1));
+        const setIf = (id,val)=>{ if(val) document.getElementById(id).value = val; };
+        setIf('s_venue', parsed.venue);
+        setIf('s_period', parsed.period);
+        setIf('s_engine', parsed.engine);
+        setIf('s_temp', parsed.temp);
+        setIf('s_press', parsed.press);
+        if(parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date)) document.getElementById('s_date').value = parsed.date;
+      }
+    }catch(metaErr){
+      // 基本情報が取れなくても本文は残す
+    }
+
+    status.textContent = '読み取りが完了しました。内容を確認して保存してください。';
+  }catch(e){
+    status.textContent = '読み取りに失敗しました(' + (e && e.message ? e.message : '原因不明') + ')。もう一度お試しいただくか、手入力で登録してください。';
+  }finally{
+    btn.disabled = false; btn.textContent = '✨ 写真を読み取る';
+  }
+});
+
+/* ================= BACKUP ================= */
+function backupFileName(){
+  const d = new Date();
+  const p = n => String(n).padStart(2,'0');
+  return `メモ_バックアップ_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}.json`;
+}
+
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const status = document.getElementById('backupStatus');
+  if(!setupEntries.length){ status.textContent = '書き出せる記録がまだありません。'; return; }
+  try{
+    const payload = {
+      app: 'setup-memo',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      entries: setupEntries
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = backupFileName();
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 3000);
+    status.textContent = setupEntries.length + '件を書き出しました。「ファイル」アプリやiCloudなど、消えない場所に保存してください。';
+  }catch(e){
+    status.textContent = '書き出しに失敗しました(' + (e && e.message ? e.message : '原因不明') + ')。';
+  }
+});
+
+document.getElementById('importBtn').addEventListener('click', ()=>document.getElementById('backupInput').click());
+
+document.getElementById('backupInput').addEventListener('change', async (ev)=>{
+  const file = (ev.target.files || [])[0];
+  ev.target.value = '';
+  if(!file) return;
+  const status = document.getElementById('backupStatus');
+  status.textContent = '読み込み中…';
+
+  try{
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    const incoming = Array.isArray(payload) ? payload : (payload.entries || []);
+    if(!Array.isArray(incoming) || !incoming.length){
+      throw new Error('記録が見つかりませんでした');
+    }
+
+    const existingIds = new Set(setupEntries.map(e=>e.id));
+    let added = 0, skipped = 0;
+
+    for(const raw of incoming){
+      if(!raw || typeof raw !== 'object') continue;
+      if(raw.id && existingIds.has(raw.id)){ skipped++; continue; }
+      const entry = migrate({
+        id: raw.id || genId('s'),
+        body: raw.body || '',
+        venue: raw.venue || '',
+        period: raw.period || '',
+        date: raw.date || '',
+        engine: raw.engine || '',
+        temp: raw.temp || '',
+        press: raw.press || '',
+        prop: raw.prop || '',
+        maint: raw.maint || '',
+        createdAt: raw.createdAt || Date.now()
+      });
+      await window.storage.set('setup:'+entry.id, JSON.stringify(entry), false);
+      setupEntries.push(entry);
+      existingIds.add(entry.id);
+      added++;
+    }
+
+    setupEntries.sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.createdAt-a.createdAt));
+    rebuildFilters(); renderSetup(); renderVenueTab();
+    status.textContent = `${added}件を読み込みました。` + (skipped ? `（重複${skipped}件はそのままです）` : '');
+  }catch(e){
+    status.textContent = '読み込みに失敗しました(' + (e && e.message ? e.message : '原因不明') + ')。バックアップファイルを選んでいるかご確認ください。';
+  }
+});
+
+/* ================= INIT ================= */
+resetSetupForm();
+loadSetup();
+</script>
+</body>
+</html>
