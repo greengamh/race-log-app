@@ -135,11 +135,6 @@
   }
   .clear-link{color:var(--buoy-gold); cursor:pointer; font-size:11.5px;}
 
-  .import-box{
-    border:1px dashed var(--buoy-gold-dim); border-radius:10px;
-    padding:14px; margin-bottom:16px; background:rgba(217,164,65,0.05);
-  }
-  .import-box .hint{font-size:12px; color:var(--foam-dim); line-height:1.7; margin-bottom:10px;}
   .import-actions{display:flex; gap:8px; flex-wrap:wrap;}
   .btn-mini{
     padding:9px 12px; font-size:12.5px; border-radius:7px; cursor:pointer;
@@ -148,8 +143,6 @@
   }
   .btn-mini:disabled{opacity:0.5;}
   .import-status{font-size:12px; color:var(--foam-dim); margin-top:10px; line-height:1.6;}
-  .thumbs{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;}
-  .thumbs img{width:52px; height:52px; object-fit:cover; border-radius:6px; border:1px solid var(--water-line);}
   .tagline{
     display:inline-block; font-size:11px; padding:2px 7px; border-radius:20px;
     background:var(--water-mid); color:var(--foam-dim); margin:0 5px 5px 0;
@@ -207,28 +200,9 @@
   <div class="form-panel" id="setupFormPanel">
     <h2 id="setupFormTitle">メモを追加</h2>
 
-    <div class="import-box">
-      <div class="hint">
-        「写真を貼り付ける」を押して<br>
-        スマホやPCなどに書いているメモのスクショを貼り付けるか、<br>
-        手書きノートの写真を撮って貼り付けてください。<br>
-        写真を貼り付けたら「写真を読み取る」を押してください。<br><br>
-        写真を読み取ると貼り付けた内容を読み取り、メモ本文に文字を書き起こします。<br>
-        メモ本文の内容からレース場・日付・気温・気圧などを自動で振り分けます。<br><br>
-        「メモ本文」内に手入力でメモを書いてもOKです
-      </div>
-      <div class="import-actions">
-        <button class="btn-mini" id="pickImgBtn" type="button">📷 写真を貼り付ける</button>
-        <button class="btn-mini" id="analyzeBtn" type="button">✨ 写真を読み取る</button>
-      </div>
-      <input type="file" id="imgInput" accept="image/*" multiple style="display:none">
-      <div class="thumbs" id="thumbs"></div>
-      <div class="import-status" id="importStatus"></div>
-    </div>
-
     <div class="field">
       <label>メモ本文</label>
-      <textarea id="s_body" style="min-height:320px;" placeholder="ここにメモを書く、または写真から文章を読み取る"></textarea>
+      <textarea id="s_body" style="min-height:320px;" placeholder="ここにメモを書く"></textarea>
     </div>
 
     <div class="row2">
@@ -291,6 +265,32 @@
 <datalist id="venueDatalist"></datalist>
 
 <script>
+/* 保存機能: Claudeの外（通常のブラウザ）ではlocalStorageで代用する */
+if(!window.storage || typeof window.storage.set !== 'function'){
+  const LS_PREFIX = 'racelog:';
+  window.storage = {
+    async list(prefix){
+      const keys = [];
+      for(let i=0;i<localStorage.length;i++){
+        const k = localStorage.key(i);
+        if(k.startsWith(LS_PREFIX + prefix)) keys.push(k.slice(LS_PREFIX.length));
+      }
+      return { keys };
+    },
+    async get(key){
+      const v = localStorage.getItem(LS_PREFIX + key);
+      return v === null ? null : { key, value: v };
+    },
+    async set(key, value){
+      localStorage.setItem(LS_PREFIX + key, value);
+      return { key, value };
+    },
+    async delete(key){
+      localStorage.removeItem(LS_PREFIX + key);
+      return { key, deleted: true };
+    }
+  };
+}
 const ALL_VENUES = [
   '桐生','戸田','江戸川','平和島','多摩川','浜名湖','蒲郡','常滑',
   '津','三国','びわこ','住之江','尼崎','鳴門','丸亀','児島',
@@ -300,7 +300,6 @@ const DAY_MARKERS = ['受領時','受領','前検','初日','2日目','二日目
 
 let setupEntries = [];
 let editingSetupId = null;
-let pendingImages = [];
 let browsingVenue = null;
 
 function todayStr(){ return new Date().toISOString().slice(0,10); }
@@ -457,7 +456,7 @@ function renderSetup(){
   document.getElementById('filterCount').textContent =
     setupEntries.length ? `${list.length} / ${setupEntries.length} 件を表示` : '';
   if(!setupEntries.length){
-    el.innerHTML = '<div class="empty">まだメモがありません。<br>文章の貼り付け、またはスクショの読み取りで追加できます。</div>';
+    el.innerHTML = '<div class="empty">まだメモがありません。<br>「メモを追加」から文章を貼り付けるか、手入力で追加できます。</div>';
     return;
   }
   if(!list.length){ el.innerHTML = '<div class="empty">条件に合う記録が見つかりませんでした。</div>'; return; }
@@ -516,9 +515,6 @@ function resetSetupForm(){
   SFIELDS.forEach(i=>document.getElementById(i).value='');
   document.getElementById('s_date').value = todayStr();
   editingSetupId = null;
-  pendingImages = [];
-  document.getElementById('thumbs').innerHTML = '';
-  document.getElementById('importStatus').textContent = '';
   document.getElementById('setupFormTitle').textContent = 'メモを追加';
 }
 function openSetupForm(){
@@ -541,7 +537,7 @@ function startEditSetup(id){
   document.getElementById('s_engine').value=e.engine||'';
   document.getElementById('s_temp').value=e.temp||'';
   document.getElementById('s_press').value=e.press||'';
-  pendingImages=[]; document.getElementById('thumbs').innerHTML='';
+
   openSetupForm(); window.scrollTo({top:0,behavior:'smooth'});
 }
 /* 本文から基本情報を自動で拾う（API不要のローカル解析） */
@@ -640,8 +636,6 @@ async function saveSetup(){
     createdAt: editingSetupId ? (setupEntries.find(x=>x.id===editingSetupId)||{}).createdAt||Date.now() : Date.now()
   };
   try{
-    if(!window.storage || typeof window.storage.set !== 'function'){      throw new Error('保存機能が使えません。Claudeアプリ内でこのアーティファクトを開いた状態でお試しください');
-    }
     const result = await window.storage.set('setup:'+id, JSON.stringify(data), false);
     if(!result) throw new Error('保存が拒否されました');
     setupEntries = editingSetupId ? setupEntries.map(x=>x.id===id?data:x) : [data, ...setupEntries];
@@ -665,56 +659,6 @@ document.getElementById('setupSaveBtn').addEventListener('click', saveSetup);
 document.getElementById('s_body').addEventListener('blur', ()=>{ applyLocalParse(); });
 document.getElementById('s_body').addEventListener('paste', ()=>{ setTimeout(applyLocalParse, 60); });
 
-/* ================= IMAGE PICK ================= */
-document.getElementById('pickImgBtn').addEventListener('click', ()=>document.getElementById('imgInput').click());
-document.getElementById('imgInput').addEventListener('change', async (ev)=>{
-  const files = Array.from(ev.target.files || []).slice(0,6);
-  pendingImages = [];
-  const thumbs = document.getElementById('thumbs');
-  thumbs.innerHTML = '';
-  let fail = 0;
-  for(const f of files){
-    try{
-      const b64 = await fileToBase64(f);
-      pendingImages.push({ media_type:'image/jpeg', data:b64 });
-      const img = document.createElement('img');
-      img.src = 'data:image/jpeg;base64,' + b64;
-      thumbs.appendChild(img);
-    }catch(e){ fail++; }
-  }
-  document.getElementById('importStatus').textContent = pendingImages.length
-    ? pendingImages.length + '枚を選択しました。順番どおりに読み取ります。'
-    : (fail ? '画像の読み込みに失敗しました。' : '');
-  ev.target.value = '';
-});
-
-function fileToBase64(file){
-  return new Promise((res, rej)=>{
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const MAX_DIM = 1400;
-        let { width, height } = img;
-        if(width > MAX_DIM || height > MAX_DIM){
-          const scale = MAX_DIM / Math.max(width, height);
-          width = Math.round(width*scale); height = Math.round(height*scale);
-        }
-        const c = document.createElement('canvas');
-        c.width=width; c.height=height;
-        const ctx=c.getContext('2d');
-        ctx.fillStyle='#fff'; ctx.fillRect(0,0,width,height);
-        ctx.drawImage(img,0,0,width,height);
-        res(c.toDataURL('image/jpeg',0.85).split(',')[1]);
-      };
-      img.onerror = ()=>rej(new Error('画像の読み込みに失敗しました'));
-      img.src = reader.result;
-    };
-    reader.onerror = ()=>rej(new Error('読み込み失敗'));
-    reader.readAsDataURL(file);
-  });
-}
-
 /* ================= AUTO EXTRACTION ================= */
 async function callClaude(content){
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -731,13 +675,6 @@ async function callClaude(content){
   return text;
 }
 
-const TRANSCRIBE_PROMPT = `このボートレーサーの整備メモ画像を、書かれている内容のまま文字起こししてください。
-・原文の順番、改行、行の区切りをそのまま保つこと
-・「前検」「初日」「2日目」「3日目」「最終日」「ペラ」「スタート」などの見出し行は、独立した1行として残すこと
-・数値、専門用語、記号（○、※、rpm、番、低 など）は一切変更しないこと
-・要約や説明、感想、コードフェンスは書かず、文字起こしの結果だけを出力すること
-・画面上部のアプリのタブや時刻表示など、メモ本文以外の部分は含めないこと`;
-
 const META_PROMPT = `以下のボートレーサーの整備メモから、基本情報だけをJSONで抽出してください。
 説明やコードフェンスは書かず、JSONオブジェクトのみを出力すること。
 
@@ -752,64 +689,6 @@ const META_PROMPT = `以下のボートレーサーの整備メモから、基�
 
 --- メモ ---
 `;
-
-document.getElementById('analyzeBtn').addEventListener('click', async ()=>{
-  const pasted = document.getElementById('s_body').value.trim();
-  if(!pasted && !pendingImages.length){
-    alert('メモを貼り付けるか、スクリーンショットを選んでください。');
-    return;
-  }
-  const btn = document.getElementById('analyzeBtn');
-  const status = document.getElementById('importStatus');
-  btn.disabled = true; btn.textContent = '読み取り中…';
-
-  try{
-    let fullText = pasted;
-
-    // 画像は1枚ずつ文字起こしして、順番につなげる
-    if(pendingImages.length){
-      const chunks = [];
-      for(let i=0;i<pendingImages.length;i++){
-        status.textContent = `スクショを読み取り中… (${i+1}/${pendingImages.length})`;
-        const img = pendingImages[i];
-        const text = await callClaude([
-          { type:'image', source:{ type:'base64', media_type:img.media_type, data:img.data } },
-          { type:'text', text: TRANSCRIBE_PROMPT }
-        ]);
-        chunks.push(text.replace(/```/g,'').trim());
-      }
-      const joined = chunks.join('\n');
-      fullText = pasted ? (pasted + '\n\n' + joined) : joined;
-      document.getElementById('s_body').value = fullText;
-    }
-
-    // 基本情報を抽出
-    status.textContent = '基本情報を整理中…';
-    try{
-      const metaText = await callClaude([{ type:'text', text: META_PROMPT + fullText.slice(0, 3000) }]);
-      let clean = metaText.replace(/```json|```/g,'').trim();
-      const a = clean.indexOf('{'), b = clean.lastIndexOf('}');
-      if(a !== -1 && b !== -1){
-        const parsed = JSON.parse(clean.slice(a, b+1));
-        const setIf = (id,val)=>{ if(val) document.getElementById(id).value = val; };
-        setIf('s_venue', parsed.venue);
-        setIf('s_period', parsed.period);
-        setIf('s_engine', parsed.engine);
-        setIf('s_temp', parsed.temp);
-        setIf('s_press', parsed.press);
-        if(parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date)) document.getElementById('s_date').value = parsed.date;
-      }
-    }catch(metaErr){
-      // 基本情報が取れなくても本文は残す
-    }
-
-    status.textContent = '読み取りが完了しました。内容を確認して保存してください。';
-  }catch(e){
-    status.textContent = '読み取りに失敗しました(' + (e && e.message ? e.message : '原因不明') + ')。もう一度お試しいただくか、手入力で登録してください。';
-  }finally{
-    btn.disabled = false; btn.textContent = '✨ 写真を読み取る';
-  }
-});
 
 /* ================= BACKUP ================= */
 function backupFileName(){
