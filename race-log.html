@@ -109,6 +109,21 @@
     border:1px solid var(--water-line); background:transparent; color:var(--foam-dim);
   }
   .entry-actions .del{color:var(--danger); border-color:#5a2a26;}
+  /* ペラ表 */
+  .prop-hint{font-size:13px; color:var(--foam-dim); line-height:1.7; margin:6px 2px 0;}
+  .chart-wrap{background:var(--water-card); border:1px solid var(--water-line); border-radius:14px; padding:8px; margin:12px 0 16px;}
+  #propSvg{display:block; width:100%; height:auto; touch-action:none; user-select:none; -webkit-user-select:none;}
+  #propSvg .pp{cursor:grab;}
+  .prop-pos-line{font-family:'Oswald'; font-size:14px; color:var(--buoy-gold); margin:-4px 0 14px;}
+  .btn-del{padding:12px 16px; background:transparent; color:var(--danger); border:1px solid #5a2a26; border-radius:8px; cursor:pointer; font-size:13px;}
+  .prop-list-title{font-size:13px; color:var(--foam-dim); margin:4px 2px 8px;}
+  .prop-row{display:flex; align-items:center; gap:10px; padding:11px 12px; background:var(--water-card); border:1px solid var(--water-line); border-radius:10px; margin-bottom:8px; cursor:pointer;}
+  .prop-row.sel{border-color:var(--buoy-gold);}
+  .prop-dot{width:14px; height:14px; border-radius:50%; flex:none;}
+  .prop-info{flex:1; min-width:0;}
+  .prop-name{font-weight:700; font-size:15px; color:var(--foam);}
+  .prop-sub{font-size:13px; color:var(--foam-dim); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .prop-pos{font-family:'Oswald'; font-size:13px; color:var(--buoy-gold); white-space:nowrap;}
   .loading{text-align:center; padding:40px; color:var(--foam-dim); font-size:13px;}
   /* メモ全文：日ごとのまとまり */
   /* メモ全文：日ごとの見出しを目立たせる */
@@ -188,6 +203,7 @@
   <div class="tabs">
     <button class="tab-btn active" id="tabSearch" type="button">メモ検索</button>
     <button class="tab-btn" id="tabVenue" type="button">レース場</button>
+    <button class="tab-btn" id="tabProp" type="button">ペラ表</button>
   </div>
   <div class="wave-rule"></div>
 </header>
@@ -258,6 +274,25 @@
     <div class="vtitle" id="venueDetailTitle" style="margin-bottom:14px;"></div>
     <div id="venueDetailList"></div>
   </div>
+</div>
+
+<div class="view" id="viewProp">
+  <div class="prop-hint">図の好きな位置をタップして、ペラを置きます。置いた点はドラッグで動かせます。</div>
+  <div class="chart-wrap" id="propChartWrap"></div>
+
+  <div class="form-panel" id="propFormPanel">
+    <h2 id="propFormTitle">ペラを追加</h2>
+    <div class="prop-pos-line" id="propPosLine"></div>
+    <div class="field"><label>名前</label><input type="text" id="p_name" placeholder="例: ペラA"></div>
+    <div class="field"><label>メモ</label><textarea id="p_note" placeholder="例: 児島 6月 調整後"></textarea></div>
+    <div class="form-actions">
+      <button class="btn-save" id="propSaveBtn" type="button">保存する</button>
+      <button class="btn-cancel" id="propCancelBtn" type="button">閉じる</button>
+      <button class="btn-del" id="propDelBtn" type="button">削除</button>
+    </div>
+  </div>
+
+  <div id="propListArea"></div>
 </div>
 </main>
 
@@ -367,13 +402,14 @@ function migrate(e){
 /* ================= TABS ================= */
 document.getElementById('tabSearch').addEventListener('click', ()=>switchTab('search'));
 document.getElementById('tabVenue').addEventListener('click', ()=>switchTab('venue'));
+document.getElementById('tabProp').addEventListener('click', ()=>switchTab('prop'));
 function switchTab(which){
-  const s = which === 'search';
-  document.getElementById('tabSearch').classList.toggle('active', s);
-  document.getElementById('tabVenue').classList.toggle('active', !s);
-  document.getElementById('viewSearch').classList.toggle('active', s);
-  document.getElementById('viewVenue').classList.toggle('active', !s);
-  if(!s){ browsingVenue = null; renderVenueTab(); }
+  [['search','Search'],['venue','Venue'],['prop','Prop']].forEach(([k,cap])=>{
+    document.getElementById('tab'+cap).classList.toggle('active', k===which);
+    document.getElementById('view'+cap).classList.toggle('active', k===which);
+  });
+  if(which === 'venue'){ browsingVenue = null; renderVenueTab(); }
+  if(which === 'prop'){ renderProp(); }
 }
 
 /* ================= LOAD ================= */
@@ -689,6 +725,244 @@ const META_PROMPT = `以下のボートレーサーの整備メモから、基�
 --- メモ ---
 `;
 
+/* ================= PROP CHART（ペラ表） ================= */
+/* x: -1=捻 〜 +1=広 / y: -1=低 〜 +1=高。画面上は 200x200 の座標で描く */
+const PROP_COLORS = ['#D9A441','#5EC4E8','#E8735E','#7ED68A','#C58BE8','#E8D85E','#E88BB6','#8BA7E8'];
+const PC = 100, PR = 76;
+let propPoints = [];
+let propSel = null;      // 選択中の点のid
+let propDraft = null;    // 追加しようとしている位置 {x,y}
+let propLastTouch = 0;   // 点の操作直後のクリックを無視するための時刻
+
+function clampUnit(v){ return Math.max(-1, Math.min(1, Math.round(v*100)/100)); }
+function propQuadrant(x, y){
+  const h = Math.abs(x) < 0.08 ? '' : (x < 0 ? '捻' : '広');
+  const v = Math.abs(y) < 0.08 ? '' : (y < 0 ? '低' : '高');
+  return [v, h].filter(Boolean).join('・') || '中央';
+}
+function propSorted(){ return propPoints.slice().sort((a,b)=>(a.createdAt||0)-(b.createdAt||0)); }
+
+async function loadProps(){
+  try{
+    const res = await window.storage.list('prop:', false);
+    const keys = (res && res.keys) ? res.keys : [];
+    const loaded = [];
+    for(const k of keys){
+      try{ const it = await window.storage.get(k,false); if(it&&it.value) loaded.push(JSON.parse(it.value)); }catch(e){}
+    }
+    propPoints = loaded;
+  }catch(e){ propPoints = []; }
+  renderProp();
+}
+
+function renderProp(){
+  renderPropChart();
+  renderPropForm();
+  renderPropList();
+}
+
+function renderPropChart(){
+  const L = 20, R = 180;
+  const t = (x,y,anchor,size,fill,txt,extra='') =>
+    `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="${size}" fill="${fill}" ${extra}>${txt}</text>`;
+  let s = `<svg id="propSvg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">`;
+  s += `<rect x="${L}" y="${L}" width="${R-L}" height="${R-L}" rx="4" fill="rgba(10,31,38,0.55)" stroke="#264A54"/>`;
+  s += `<line x1="${L}" y1="${PC}" x2="${R}" y2="${PC}" stroke="#8FADA9" stroke-width="0.8"/>`;
+  s += `<line x1="${PC}" y1="${L}" x2="${PC}" y2="${R}" stroke="#8FADA9" stroke-width="0.8"/>`;
+  s += t(PC,13,'middle',11,'#EAF3F0','高') + t(PC,196,'middle',11,'#EAF3F0','低');
+  s += t(10,PC+4,'middle',11,'#EAF3F0','捻') + t(190,PC+4,'middle',11,'#EAF3F0','広');
+  const q = '#8FADA9';
+  s += t(L+4,L+11,'start',7,q,'高・捻','opacity="0.6"') + t(R-4,L+11,'end',7,q,'高・広','opacity="0.6"');
+  s += t(L+4,R-5,'start',7,q,'低・捻','opacity="0.6"') + t(R-4,R-5,'end',7,q,'低・広','opacity="0.6"');
+
+  propSorted().forEach(p=>{
+    const cx = PC + p.x*PR, cy = PC - p.y*PR;
+    const right = cx < 130;
+    const sel = p.id === propSel;
+    s += `<g class="pp" data-id="${escapeHtml(p.id)}">`;
+    if(sel) s += `<circle cx="${cx}" cy="${cy}" r="8.5" fill="none" stroke="#EAF3F0" stroke-width="1.2"/>`;
+    s += `<circle cx="${cx}" cy="${cy}" r="12" fill="transparent"/>`;
+    s += `<circle cx="${cx}" cy="${cy}" r="5" fill="${p.color||PROP_COLORS[0]}" stroke="#0A1F26" stroke-width="1"/>`;
+    s += t(right?cx+9:cx-9, cy+2.5, right?'start':'end', 7.5, '#EAF3F0', escapeHtml(p.name),
+      'stroke="#0A1F26" stroke-width="2.2" paint-order="stroke" stroke-linejoin="round"');
+    s += `</g>`;
+  });
+  if(propDraft){
+    const cx = PC + propDraft.x*PR, cy = PC - propDraft.y*PR;
+    s += `<g class="pd"><circle cx="${cx}" cy="${cy}" r="12" fill="transparent"/>` +
+         `<circle cx="${cx}" cy="${cy}" r="6" fill="rgba(217,164,65,0.25)" stroke="#D9A441" stroke-width="1.4" stroke-dasharray="2 2"/></g>`;
+  }
+  s += `</svg>`;
+  document.getElementById('propChartWrap').innerHTML = s;
+  bindPropChart();
+}
+
+function propPointFromEvent(svg, ev){
+  const r = svg.getBoundingClientRect();
+  const sx = (ev.clientX - r.left) / r.width * 200;
+  const sy = (ev.clientY - r.top) / r.height * 200;
+  return { x: clampUnit((sx-PC)/PR), y: clampUnit((PC-sy)/PR) };
+}
+
+function bindPropChart(){
+  const svg = document.getElementById('propSvg');
+  // 空いている場所をタップ → 追加位置を置く
+  svg.addEventListener('click', ev=>{
+    if(Date.now() - propLastTouch < 500) return;
+    if(ev.target.closest && ev.target.closest('.pp, .pd')) return;
+    const pos = propPointFromEvent(svg, ev);
+    const wasEditing = propSel !== null;
+    propSel = null;
+    propDraft = pos;
+    if(wasEditing){ document.getElementById('p_name').value=''; document.getElementById('p_note').value=''; }
+    renderProp();
+    document.getElementById('propFormPanel').scrollIntoView({ behavior:'smooth', block:'nearest' });
+  });
+  // 置く途中の点 → ドラッグで位置を動かす
+  svg.querySelectorAll('.pd').forEach(g=>{
+    g.addEventListener('pointerdown', ev=>{
+      ev.preventDefault();
+      g.setPointerCapture(ev.pointerId);
+      const move = e=>{
+        propDraft = propPointFromEvent(svg, e);
+        renderPropChartKeep(g, propDraft);
+        document.getElementById('propPosLine').textContent = '位置: ' + propQuadrant(propDraft.x, propDraft.y);
+      };
+      const up = ()=>{
+        g.removeEventListener('pointermove', move);
+        g.removeEventListener('pointerup', up);
+        g.removeEventListener('pointercancel', up);
+        propLastTouch = Date.now();
+      };
+      g.addEventListener('pointermove', move);
+      g.addEventListener('pointerup', up);
+      g.addEventListener('pointercancel', up);
+    });
+  });
+  // 点をタップ → 選択 / ドラッグ → 移動
+  svg.querySelectorAll('.pp').forEach(g=>{
+    g.addEventListener('pointerdown', ev=>{
+      ev.preventDefault();
+      const id = g.dataset.id;
+      const p = propPoints.find(x=>x.id===id); if(!p) return;
+      const startX = ev.clientX, startY = ev.clientY;
+      let moved = false;
+      g.setPointerCapture(ev.pointerId);
+      const move = e=>{
+        if(!moved && Math.hypot(e.clientX-startX, e.clientY-startY) < 5) return;
+        moved = true;
+        const pos = propPointFromEvent(svg, e);
+        p.x = pos.x; p.y = pos.y;
+        renderPropChartKeep(g, p);
+      };
+      const up = async e=>{
+        g.removeEventListener('pointermove', move);
+        g.removeEventListener('pointerup', up);
+        g.removeEventListener('pointercancel', up);
+        propLastTouch = Date.now();
+        if(moved) await savePropPoint(p);
+        propSel = id; propDraft = null;
+        document.getElementById('p_name').value = p.name || '';
+        document.getElementById('p_note').value = p.note || '';
+        renderProp();
+      };
+      g.addEventListener('pointermove', move);
+      g.addEventListener('pointerup', up);
+      g.addEventListener('pointercancel', up);
+    });
+  });
+}
+/* ドラッグ中は点だけ動かす（全体を描き直さない） */
+function renderPropChartKeep(g, p){
+  const dx = p.x*PR, dy = -p.y*PR;
+  const base = PC;
+  g.querySelectorAll('circle').forEach(c=>{ c.setAttribute('cx', base+dx); c.setAttribute('cy', base+dy); });
+  const txt = g.querySelector('text');
+  if(txt){
+    const right = (base+dx) < 130;
+    txt.setAttribute('x', right ? base+dx+9 : base+dx-9);
+    txt.setAttribute('y', base+dy+2.5);
+    txt.setAttribute('text-anchor', right ? 'start' : 'end');
+  }
+}
+
+function renderPropForm(){
+  const panel = document.getElementById('propFormPanel');
+  const p = propSel ? propPoints.find(x=>x.id===propSel) : null;
+  const open = !!(p || propDraft);
+  panel.classList.toggle('open', open);
+  if(!open) return;
+  const pos = p || propDraft;
+  document.getElementById('propFormTitle').textContent = p ? 'ペラを編集' : 'ペラを追加';
+  document.getElementById('propPosLine').textContent = '位置: ' + propQuadrant(pos.x, pos.y);
+  document.getElementById('propDelBtn').style.display = p ? '' : 'none';
+}
+
+function renderPropList(){
+  const el = document.getElementById('propListArea');
+  if(!propPoints.length){ el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="prop-list-title">置いたペラ（${propPoints.length}）</div>` +
+    propSorted().map(p=>`
+      <div class="prop-row${p.id===propSel?' sel':''}" data-id="${escapeHtml(p.id)}">
+        <span class="prop-dot" style="background:${p.color||PROP_COLORS[0]}"></span>
+        <div class="prop-info">
+          <div class="prop-name">${escapeHtml(p.name)}</div>
+          ${p.note ? `<div class="prop-sub">${escapeHtml(p.note)}</div>` : ''}
+        </div>
+        <span class="prop-pos">${propQuadrant(p.x,p.y)}</span>
+      </div>`).join('');
+  bind(el, '.prop-row', 'click', ev=>{
+    const id = ev.currentTarget.dataset.id;
+    const p = propPoints.find(x=>x.id===id); if(!p) return;
+    propSel = id; propDraft = null;
+    document.getElementById('p_name').value = p.name || '';
+    document.getElementById('p_note').value = p.note || '';
+    renderProp();
+  });
+}
+
+async function savePropPoint(p){
+  try{ await window.storage.set('prop:'+p.id, JSON.stringify(p), false); return true; }
+  catch(e){ alert('保存に失敗しました。\n理由: ' + (e && e.message ? e.message : '不明なエラー')); return false; }
+}
+
+document.getElementById('propSaveBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('p_name').value.trim();
+  const note = document.getElementById('p_note').value.trim();
+  let p = propSel ? propPoints.find(x=>x.id===propSel) : null;
+  if(p){
+    p.name = name || p.name; p.note = note;
+  }else if(propDraft){
+    p = {
+      id: genId('p'), name: name || ('ペラ' + (propPoints.length+1)), note,
+      x: propDraft.x, y: propDraft.y,
+      color: PROP_COLORS[propPoints.length % PROP_COLORS.length],
+      createdAt: Date.now()
+    };
+  }else return;
+  if(!(await savePropPoint(p))) return;
+  if(!propPoints.includes(p)) propPoints.push(p);
+  propSel = null; propDraft = null;
+  document.getElementById('p_name').value=''; document.getElementById('p_note').value='';
+  renderProp();
+});
+document.getElementById('propCancelBtn').addEventListener('click', ()=>{
+  propSel = null; propDraft = null;
+  document.getElementById('p_name').value=''; document.getElementById('p_note').value='';
+  renderProp();
+});
+document.getElementById('propDelBtn').addEventListener('click', async ()=>{
+  const p = propPoints.find(x=>x.id===propSel); if(!p) return;
+  if(!confirm('「' + p.name + '」を削除しますか？')) return;
+  try{
+    await window.storage.delete('prop:'+p.id, false);
+    propPoints = propPoints.filter(x=>x.id!==p.id);
+    propSel = null; propDraft = null;
+    document.getElementById('p_name').value=''; document.getElementById('p_note').value='';
+    renderProp();
+  }catch(e){ alert('削除に失敗しました。'); }
+});
+
 /* ================= BACKUP ================= */
 function backupFileName(){
   const d = new Date();
@@ -698,13 +972,14 @@ function backupFileName(){
 
 document.getElementById('exportBtn').addEventListener('click', ()=>{
   const status = document.getElementById('backupStatus');
-  if(!setupEntries.length){ status.textContent = '書き出せる記録がまだありません。'; return; }
+  if(!setupEntries.length && !propPoints.length){ status.textContent = '書き出せる記録がまだありません。'; return; }
   try{
     const payload = {
       app: 'setup-memo',
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
-      entries: setupEntries
+      entries: setupEntries,
+      props: propPoints
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type:'application/json' });
     const url = URL.createObjectURL(blob);
@@ -715,7 +990,7 @@ document.getElementById('exportBtn').addEventListener('click', ()=>{
     a.click();
     document.body.removeChild(a);
     setTimeout(()=>URL.revokeObjectURL(url), 3000);
-    status.textContent = setupEntries.length + '件を書き出しました。「ファイル」アプリやiCloudなど、消えない場所に保存してください。';
+    status.textContent = `メモ${setupEntries.length}件・ペラ${propPoints.length}点を書き出しました。「ファイル」アプリやiCloudなど、消えない場所に保存してください。`;
   }catch(e){
     status.textContent = '書き出しに失敗しました(' + (e && e.message ? e.message : '原因不明') + ')。';
   }
@@ -734,7 +1009,8 @@ document.getElementById('backupInput').addEventListener('change', async (ev)=>{
     const text = await file.text();
     const payload = JSON.parse(text);
     const incoming = Array.isArray(payload) ? payload : (payload.entries || []);
-    if(!Array.isArray(incoming) || !incoming.length){
+    const incomingProps = (!Array.isArray(payload) && Array.isArray(payload.props)) ? payload.props : [];
+    if(!Array.isArray(incoming) || (!incoming.length && !incomingProps.length)){
       throw new Error('記録が見つかりませんでした');
     }
 
@@ -764,8 +1040,23 @@ document.getElementById('backupInput').addEventListener('change', async (ev)=>{
     }
 
     setupEntries.sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.createdAt-a.createdAt));
-    rebuildFilters(); renderSetup(); renderVenueTab();
-    status.textContent = `${added}件を読み込みました。` + (skipped ? `（重複${skipped}件はそのままです）` : '');
+    // ペラ表の点
+    const propIds = new Set(propPoints.map(p=>p.id));
+    let propAdded = 0;
+    for(const raw of incomingProps){
+      if(!raw || typeof raw !== 'object' || !raw.id || propIds.has(raw.id)) continue;
+      const p = {
+        id: String(raw.id), name: String(raw.name || 'ペラ'), note: String(raw.note || ''),
+        x: clampUnit(Number(raw.x) || 0), y: clampUnit(Number(raw.y) || 0),
+        color: raw.color || PROP_COLORS[propPoints.length % PROP_COLORS.length],
+        createdAt: raw.createdAt || Date.now()
+      };
+      await window.storage.set('prop:'+p.id, JSON.stringify(p), false);
+      propPoints.push(p); propIds.add(p.id); propAdded++;
+    }
+
+    rebuildFilters(); renderSetup(); renderVenueTab(); renderProp();
+    status.textContent = `メモ${added}件` + (incomingProps.length ? `・ペラ${propAdded}点` : '') + 'を読み込みました。' + (skipped ? `（重複${skipped}件はそのままです）` : '');
   }catch(e){
     status.textContent = '読み込みに失敗しました(' + (e && e.message ? e.message : '原因不明') + ')。バックアップファイルを選んでいるかご確認ください。';
   }
@@ -774,6 +1065,7 @@ document.getElementById('backupInput').addEventListener('change', async (ev)=>{
 /* ================= INIT ================= */
 resetSetupForm();
 loadSetup();
+loadProps();
 </script>
 </body>
 </html>
