@@ -110,14 +110,13 @@
   }
   .entry-actions .del{color:var(--danger); border-color:#5a2a26;}
   .loading{text-align:center; padding:40px; color:var(--foam-dim); font-size:13px;}
-
+  /* メモ全文：日ごとのまとまり */
   /* メモ全文：日ごとの見出しを目立たせる */
   .note-body{margin-top:14px;}
   .day-block{margin-bottom:14px;}
   .day-head{
-    font-family:'Oswald'; font-weight:600; font-size:13px;
-    color:var(--buoy-gold); letter-spacing:0.03em;
-    padding:4px 0 6px; border-bottom:1px solid rgba(217,164,65,0.25); margin-bottom:8px;
+    font-size:15px; line-height:1.95; color:var(--foam);
+    white-space:pre-wrap; word-break:break-word;
   }
   .day-text{font-size:15px; line-height:1.95; white-space:pre-wrap; word-break:break-word; color:var(--foam);}
   mark{background:rgba(217,164,65,0.35); color:#fff; border-radius:2px;}
