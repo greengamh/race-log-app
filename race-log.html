@@ -456,8 +456,10 @@ function getFiltered(){
 
 function entryCardHtml(e, q){
   const tags = [];
-  if(e.temp) tags.push('🌡 '+e.temp);
-  if(e.press) tags.push('📈 '+e.press);
+  const wr = weatherRange(e.body);
+  const temp = wr.temp || e.temp, press = wr.press || e.press;
+  if(temp) tags.push('🌡 '+temp);
+  if(press) tags.push('📈 '+press);
   if(e.engine) tags.push('⚙️ '+e.engine);
   return `<div class="setup-entry" data-id="${e.id}">
     <div class="setup-head" data-stoggle="1">
@@ -575,6 +577,27 @@ function startEditSetup(id){
 
   openSetupForm(); window.scrollTo({top:0,behavior:'smooth'});
 }
+/* 本文に出てくる気温・気圧をすべて拾い、節間の最小〜最大にまとめる（例: 21-26℃ / 1005-1011hPa） */
+function weatherRange(text){
+  const t = String(text||'');
+  const collect = (re, lo, hi) => {
+    const nums = [];
+    for(const m of t.matchAll(re)){
+      [m[1], m[2]].forEach(s=>{
+        if(s === undefined) return;
+        const n = parseFloat(s);
+        if(n >= lo && n <= hi) nums.push(n);
+      });
+    }
+    return nums.length ? [Math.min(...nums), Math.max(...nums)] : null;
+  };
+  const fmt = (r, unit) => r ? (r[0] === r[1] ? `${r[0]}${unit}` : `${r[0]}-${r[1]}${unit}`) : '';
+  return {
+    temp:  fmt(collect(/(-?\d{1,2}(?:\.\d)?)\s*(?:[-–—~〜]\s*(-?\d{1,2}(?:\.\d)?)\s*)?(?:℃|°C)/gi, -20, 45), '℃'),
+    press: fmt(collect(/(\d{3,4})\s*(?:[-–—~〜]\s*(\d{3,4})\s*)?(?:hpa|ヘクトパスカル)/gi, 900, 1100), 'hPa')
+  };
+}
+
 /* 本文から基本情報を自動で拾う（API不要のローカル解析） */
 function parseBodyLocally(text){
   const t = String(text||'');
@@ -600,12 +623,14 @@ function parseBodyLocally(text){
   }
 
   // 気温：22-26℃ / 22℃
-  const temp = t.match(/-?\d{1,2}\s*(?:[-–—~〜]\s*-?\d{1,2}\s*)?(?:℃|°C|度)/i);
-  if(temp) out.temp = temp[0].replace(/\s+/g,'');
-
-  // 気圧：1005-1010hpa
-  const press = t.match(/\d{3,4}\s*(?:[-–—~〜]\s*\d{3,4}\s*)?(?:hpa|hPa|HPA|ヘクトパスカル)/i);
-  if(press) out.press = press[0].replace(/\s+/g,'');
+  // 本文中の全部の値から、最小〜最大にまとめる
+  const wr = weatherRange(t);
+  if(wr.temp) out.temp = wr.temp;
+  else{
+    const temp = t.match(/-?\d{1,2}\s*(?:[-–—~〜]\s*-?\d{1,2}\s*)?(?:℃|°C|度)/i);
+    if(temp) out.temp = temp[0].replace(/\s+/g,'');
+  }
+  if(wr.press) out.press = wr.press;
 
   // エンジン：49号機 36% / エンジン49号機
   const eng = t.match(/(\d{1,3}\s*号機[^\n]{0,20})/);
