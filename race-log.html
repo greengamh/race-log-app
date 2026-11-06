@@ -116,6 +116,8 @@
     border:1px solid var(--buoy-gold-dim); border-radius:8px;
   }
   .prop-btn:active{transform:scale(0.96);}
+  #propFormPanel .form-actions{gap:8px;}
+  #propFormPanel .form-actions button{padding:6px 14px; font-size:12px; border-radius:6px; flex:none;}
   .prop-float{position:fixed; top:10px; right:14px; z-index:50; margin:0; background:rgba(10,31,38,0.95); box-shadow:0 2px 10px rgba(0,0,0,.5);}
   .prop-hint{font-size:13px; color:var(--foam-dim); line-height:1.7; margin:6px 2px 0;}
   .chart-wrap{background:var(--water-card); border:1px solid var(--water-line); border-radius:14px; padding:8px; margin:12px 0 16px;}
@@ -294,8 +296,8 @@
   <div class="form-panel" id="propFormPanel">
     <h2 id="propFormTitle">ペラを追加</h2>
     <div class="prop-pos-line" id="propPosLine"></div>
-    <div class="field"><label>名前</label><input type="text" id="p_name" placeholder="例: ペラA"></div>
-    <div class="field"><label>メモ</label><textarea id="p_note"></textarea></div>
+    <div class="field"><label>見出し</label><input type="text" id="p_name" placeholder="例: ペラA"></div>
+    <div class="field"><label>メモ</label><textarea id="p_note" style="min-height:120px"></textarea></div>
     <div class="form-actions">
       <button class="btn-save" id="propSaveBtn" type="button">保存する</button>
       <button class="btn-cancel" id="propCancelBtn" type="button">閉じる</button>
