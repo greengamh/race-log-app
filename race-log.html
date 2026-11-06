@@ -110,6 +110,12 @@
   }
   .entry-actions .del{color:var(--danger); border-color:#5a2a26;}
   /* ペラ表 */
+  .prop-btn{
+    flex:none; margin-right:10px; padding:8px 12px; font-size:13px; font-weight:700; cursor:pointer;
+    background:rgba(217,164,65,0.16); color:var(--buoy-gold);
+    border:1px solid var(--buoy-gold-dim); border-radius:8px;
+  }
+  .prop-btn:active{transform:scale(0.96);}
   .prop-hint{font-size:13px; color:var(--foam-dim); line-height:1.7; margin:6px 2px 0;}
   .chart-wrap{background:var(--water-card); border:1px solid var(--water-line); border-radius:14px; padding:8px; margin:12px 0 16px;}
   #propSvg{display:block; width:100%; height:auto; touch-action:none; user-select:none; -webkit-user-select:none;}
@@ -277,6 +283,10 @@
 </div>
 
 <div class="view" id="viewProp">
+  <div id="propMemoHead" style="display:none;">
+    <div class="back-row" id="propBackBtn"><span class="arrow">← メモに戻る</span></div>
+    <div class="vtitle" id="propMemoTitle" style="margin-bottom:6px;"></div>
+  </div>
   <div class="prop-hint">図の好きな位置をタップして、ペラを置きます。置いた点はドラッグで動かせます。</div>
   <div class="chart-wrap" id="propChartWrap"></div>
 
@@ -404,6 +414,7 @@ document.getElementById('tabSearch').addEventListener('click', ()=>switchTab('se
 document.getElementById('tabVenue').addEventListener('click', ()=>switchTab('venue'));
 document.getElementById('tabProp').addEventListener('click', ()=>switchTab('prop'));
 function switchTab(which){
+  propScope = null; propSel = null; propDraft = null;
   [['search','Search'],['venue','Venue'],['prop','Prop']].forEach(([k,cap])=>{
     document.getElementById('tab'+cap).classList.toggle('active', k===which);
     document.getElementById('view'+cap).classList.toggle('active', k===which);
@@ -467,6 +478,7 @@ function entryCardHtml(e, q){
         <div class="title">${highlight(e.venue||'(レース場未設定)', q)}</div>
         <div class="sub">${escapeHtml(e.period || e.date || '日付未設定')}${e.engine?' ・ '+escapeHtml(e.engine):''}</div>
       </div>
+      <button class="prop-btn" type="button" data-prop="${e.id}">ペラ(${propPoints.filter(p=>p.memoId===e.id).length})</button>
       <div class="chevron">▼</div>
     </div>
     <div class="setup-body">
@@ -481,6 +493,7 @@ function entryCardHtml(e, q){
 }
 function bindCardEvents(el){
   bind(el,'[data-stoggle]','click', function(){ this.closest('.setup-entry').classList.toggle('open'); });
+  bind(el,'[data-prop]','click', function(ev){ ev.stopPropagation(); openMemoProp(this.getAttribute('data-prop')); });
   bind(el,'[data-sedit]','click', function(ev){ ev.stopPropagation(); startEditSetup(this.getAttribute('data-sedit')); });
   bind(el,'[data-sdel]','click', function(ev){ ev.stopPropagation(); deleteSetup(this.getAttribute('data-sdel')); });
 }
@@ -706,9 +719,13 @@ async function saveSetup(){
   }finally{ btn.disabled=false; btn.textContent='保存する'; }
 }
 async function deleteSetup(id){
-  if(!confirm('このメモを削除しますか？')) return;
+  const nProp = propPoints.filter(x=>x.memoId===id).length;
+  if(!confirm('このメモを削除しますか？' + (nProp ? `
+（このメモのペラ情報${nProp}点も一緒に消えます）` : ''))) return;
   try{
     await window.storage.delete('setup:'+id,false);
+    for(const p of propPoints.filter(x=>x.memoId===id)) await window.storage.delete('prop:'+p.id,false);
+    propPoints = propPoints.filter(x=>x.memoId!==id);
     setupEntries=setupEntries.filter(x=>x.id!==id);
     rebuildFilters(); renderSetup(); renderVenueTab();
   }catch(e){ alert('削除に失敗しました。'); }
@@ -758,6 +775,8 @@ let propPoints = [];
 let propSel = null;      // 選択中の点のid
 let propDraft = null;    // 追加しようとしている位置 {x,y}
 let propLastTouch = 0;   // 点の操作直後のクリックを無視するための時刻
+let propScope = null;    // null=ペラ表タブ / メモのid=そのメモ（節）のペラ情報
+let propReturn = null;   // メモのペラ情報から戻る先 {tab, venue, memoId}
 
 function clampUnit(v){ return Math.max(-1, Math.min(1, Math.round(v*100)/100)); }
 function propQuadrant(x, y){
@@ -765,7 +784,8 @@ function propQuadrant(x, y){
   const v = Math.abs(y) < 0.08 ? '' : (y < 0 ? '低' : '高');
   return [v, h].filter(Boolean).join('・') || '中央';
 }
-function propSorted(){ return propPoints.slice().sort((a,b)=>(a.createdAt||0)-(b.createdAt||0)); }
+function propVisible(){ return propPoints.filter(p => (p.memoId || null) === propScope); }
+function propSorted(){ return propVisible().sort((a,b)=>(a.createdAt||0)-(b.createdAt||0)); }
 
 async function loadProps(){
   try{
@@ -778,9 +798,14 @@ async function loadProps(){
     propPoints = loaded;
   }catch(e){ propPoints = []; }
   renderProp();
+  renderSetup(); renderVenueTab();
 }
 
 function renderProp(){
+  const memo = propScope ? setupEntries.find(e=>e.id===propScope) : null;
+  document.getElementById('propMemoHead').style.display = propScope ? '' : 'none';
+  if(memo) document.getElementById('propMemoTitle').textContent =
+    (memo.venue || '(レース場未設定)') + '　' + (memo.period || memo.date || '');
   renderPropChart();
   renderPropForm();
   renderPropList();
@@ -925,8 +950,8 @@ function renderPropForm(){
 
 function renderPropList(){
   const el = document.getElementById('propListArea');
-  if(!propPoints.length){ el.innerHTML = ''; return; }
-  el.innerHTML = `<div class="prop-list-title">置いたペラ（${propPoints.length}）</div>` +
+  if(!propVisible().length){ el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="prop-list-title">置いたペラ（${propVisible().length}）</div>` +
     propSorted().map(p=>`
       <div class="prop-row${p.id===propSel?' sel':''}" data-id="${escapeHtml(p.id)}">
         <span class="prop-dot" style="background:${p.color||PROP_COLORS[0]}"></span>
@@ -959,11 +984,12 @@ document.getElementById('propSaveBtn').addEventListener('click', async ()=>{
     p.name = name || p.name; p.note = note;
   }else if(propDraft){
     p = {
-      id: genId('p'), name: name || ('ペラ' + (propPoints.length+1)), note,
+      id: genId('p'), name: name || ('ペラ' + (propVisible().length+1)), note,
       x: propDraft.x, y: propDraft.y,
-      color: PROP_COLORS[propPoints.length % PROP_COLORS.length],
+      color: PROP_COLORS[propVisible().length % PROP_COLORS.length],
       createdAt: Date.now()
     };
+    if(propScope) p.memoId = propScope;
   }else return;
   if(!(await savePropPoint(p))) return;
   if(!propPoints.includes(p)) propPoints.push(p);
@@ -986,6 +1012,29 @@ document.getElementById('propDelBtn').addEventListener('click', async ()=>{
     document.getElementById('p_name').value=''; document.getElementById('p_note').value='';
     renderProp();
   }catch(e){ alert('削除に失敗しました。'); }
+});
+
+/* メモ（節）ごとのペラ情報: 「ペラ(n)」ボタンから開く。画面と動きはペラ表と同じ */
+function openMemoProp(memoId){
+  if(!setupEntries.some(e=>e.id===memoId)) return;
+  const onVenue = document.getElementById('viewVenue').classList.contains('active');
+  propReturn = { tab: onVenue ? 'venue' : 'search', venue: browsingVenue, memoId };
+  propScope = memoId; propSel = null; propDraft = null;
+  document.getElementById('p_name').value = ''; document.getElementById('p_note').value = '';
+  ['viewSearch','viewVenue'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  document.getElementById('viewProp').classList.add('active');
+  renderProp();
+  window.scrollTo({ top:0 });
+}
+document.getElementById('propBackBtn').addEventListener('click', ()=>{
+  const ret = propReturn || { tab:'search' };
+  switchTab(ret.tab);               // ここでメモごとの表示を終了する
+  if(ret.tab === 'venue' && ret.venue){ browsingVenue = ret.venue; renderVenueTab(); }
+  renderSetup();                    // 「ペラ(n)」の数を更新
+  const box = ret.tab === 'venue' ? '#venueDetailList' : '#setupListArea';
+  const card = document.querySelector(`${box} .setup-entry[data-id="${ret.memoId}"]`);
+  if(card){ card.classList.add('open'); card.scrollIntoView({ block:'start' }); }
+  propReturn = null;
 });
 
 /* ================= BACKUP ================= */
@@ -1076,6 +1125,7 @@ document.getElementById('backupInput').addEventListener('change', async (ev)=>{
         color: raw.color || PROP_COLORS[propPoints.length % PROP_COLORS.length],
         createdAt: raw.createdAt || Date.now()
       };
+      if(raw.memoId) p.memoId = String(raw.memoId);
       await window.storage.set('prop:'+p.id, JSON.stringify(p), false);
       propPoints.push(p); propIds.add(p.id); propAdded++;
     }
