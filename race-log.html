@@ -291,11 +291,11 @@
     <div class="vtitle" id="propMemoTitle" style="margin-bottom:6px;"></div>
   </div>
   <div class="prop-hint">図の好きな位置をタップして、ペラを置きます。置いた点はドラッグで動かせます。</div>
+  <div id="propSelTitle" style="display:none; margin:10px 0 0; padding:8px 12px; font-size:15px; font-weight:700; color:var(--buoy-gold); background:rgba(217,164,65,0.16); border:1px solid var(--buoy-gold-dim); border-radius:10px;"></div>
   <div class="chart-wrap" id="propChartWrap"></div>
 
   <div class="form-panel" id="propFormPanel">
     <h2 id="propFormTitle">ペラを追加</h2>
-    <div class="prop-pos-line" id="propPosLine"></div>
     <div class="field"><label>見出し</label><input type="text" id="p_name" placeholder="例: ペラA"></div>
     <div class="field"><label>メモ</label><textarea id="p_note" style="min-height:120px"></textarea></div>
     <div class="form-actions">
@@ -879,7 +879,6 @@ function bindPropChart(){
       const move = e=>{
         propDraft = propPointFromEvent(svg, e);
         renderPropChartKeep(g, propDraft);
-        document.getElementById('propPosLine').textContent = '位置: ' + propQuadrant(propDraft.x, propDraft.y);
       };
       const up = ()=>{
         g.removeEventListener('pointermove', move);
@@ -944,10 +943,11 @@ function renderPropForm(){
   const p = propSel ? propPoints.find(x=>x.id===propSel) : null;
   const open = !!(p || propDraft);
   panel.classList.toggle('open', open);
+  const st = document.getElementById('propSelTitle');   // 選んだペラの見出しを図の上に表示
+  st.textContent = (p && p.name) ? p.name : '';
+  st.style.display = (p && p.name) ? 'block' : 'none';
   if(!open) return;
-  const pos = p || propDraft;
   document.getElementById('propFormTitle').textContent = p ? 'ペラを編集' : 'ペラを追加';
-  document.getElementById('propPosLine').textContent = '位置: ' + propQuadrant(pos.x, pos.y);
   document.getElementById('propDelBtn').style.display = p ? '' : 'none';
 }
 
