@@ -116,8 +116,28 @@
     border:1px solid var(--buoy-gold-dim); border-radius:8px;
   }
   .prop-btn:active{transform:scale(0.96);}
-  #propFormPanel .form-actions{gap:8px;}
-  #propFormPanel .form-actions button{padding:6px 14px; font-size:12px; border-radius:6px; flex:none;}
+  /* ペラの編集画面: 画面の下から出す（上のマップは見えたまま） */
+  #propFormPanel{
+    position:fixed; left:0; right:0; bottom:0; z-index:40; margin:0;
+    max-height:42vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    border-radius:16px 16px 0 0; border-bottom:none; padding:14px 16px 0;
+    box-shadow:0 -6px 20px rgba(0,0,0,.55);
+  }
+  #propFormPanel .sheet-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+  #propFormPanel .sheet-head h2{margin:0;}
+  #propFormPanel .sheet-close{background:transparent; border:none; color:var(--foam-dim); font-size:22px; line-height:1; padding:4px 8px; cursor:pointer;}
+  #propFormPanel textarea{min-height:120px; resize:none; overflow:hidden;}
+  #propFormPanel .form-actions{
+    position:sticky; bottom:0; gap:8px; margin:0 -16px; padding:10px 16px 14px;
+    background:var(--water-card); border-top:1px solid var(--water-line);
+  }
+  #propFormPanel .form-actions button{padding:10px 16px; font-size:13px; border-radius:8px;}
+  #propFormPanel .form-actions .btn-cancel{flex:none;}
+  #propFormPanel .del-row{text-align:right; margin:6px 0 14px;}
+  #propFormPanel .del-row .btn-del{padding:7px 14px; font-size:12px;}
+  body.prop-sheet-open #viewProp.active{padding-bottom:50vh;}
+  /* 編集画面を開いている間は、マップを縮めて全体が見えるようにする */
+  body.prop-sheet-open #propSvg{width:auto; height:var(--prop-chart-h, auto); max-width:100%; margin:0 auto;}
   .prop-float{position:fixed; top:10px; right:14px; z-index:50; margin:0; background:rgba(10,31,38,0.95); box-shadow:0 2px 10px rgba(0,0,0,.5);}
   .prop-hint{font-size:13px; color:var(--foam-dim); line-height:1.7; margin:6px 2px 0;}
   .chart-wrap{background:var(--water-card); border:1px solid var(--water-line); border-radius:14px; padding:8px; margin:12px 0 16px;}
@@ -295,13 +315,16 @@
   <div class="chart-wrap" id="propChartWrap"></div>
 
   <div class="form-panel" id="propFormPanel">
-    <h2 id="propFormTitle">ペラを追加</h2>
+    <div class="sheet-head">
+      <h2 id="propFormTitle">ペラを追加</h2>
+      <button class="sheet-close" id="propCloseX" type="button" aria-label="閉じる">✕</button>
+    </div>
     <div class="field"><label>見出し</label><input type="text" id="p_name" placeholder="例: ペラA"></div>
-    <div class="field"><label>メモ</label><textarea id="p_note" style="min-height:120px"></textarea></div>
+    <div class="field"><label>メモ</label><textarea id="p_note"></textarea></div>
+    <div class="del-row"><button class="btn-del" id="propDelBtn" type="button">削除</button></div>
     <div class="form-actions">
       <button class="btn-save" id="propSaveBtn" type="button">保存する</button>
       <button class="btn-cancel" id="propCancelBtn" type="button">閉じる</button>
-      <button class="btn-del" id="propDelBtn" type="button">削除</button>
     </div>
   </div>
 
@@ -828,7 +851,11 @@ function renderPropChart(){
   s += t(L+4,L+11,'start',7,q,'高・捻','opacity="0.6"') + t(R-4,L+11,'end',7,q,'高・広','opacity="0.6"');
   s += t(L+4,R-5,'start',7,q,'低・捻','opacity="0.6"') + t(R-4,R-5,'end',7,q,'低・広','opacity="0.6"');
 
-  propSorted().forEach(p=>{
+  // 選んだペラは最後に描く → 見出しが他の文字より手前に出る
+  const pts = propSorted();
+  const si = pts.findIndex(p=>p.id===propSel);
+  if(si >= 0) pts.push(pts.splice(si,1)[0]);
+  pts.forEach(p=>{
     const cx = PC + p.x*PR, cy = PC - p.y*PR;
     const right = cx < 130;
     const sel = p.id === propSel;
@@ -847,6 +874,7 @@ function renderPropChart(){
   }
   s += `</svg>`;
   document.getElementById('propChartWrap').innerHTML = s;
+  propSelLabelBg();
   bindPropChart();
 }
 
@@ -869,7 +897,6 @@ function bindPropChart(){
     propDraft = pos;
     if(wasEditing){ document.getElementById('p_name').value=''; document.getElementById('p_note').value=''; }
     renderProp();
-    document.getElementById('propFormPanel').scrollIntoView({ behavior:'smooth', block:'nearest' });
   });
   // 置く途中の点 → ドラッグで位置を動かす
   svg.querySelectorAll('.pd').forEach(g=>{
@@ -936,6 +963,26 @@ function renderPropChartKeep(g, p){
     txt.setAttribute('y', base+dy+2.5);
     txt.setAttribute('text-anchor', right ? 'start' : 'end');
   }
+  if(g.dataset.id === propSel) propSelLabelBg();
+}
+/* 選んだペラの見出しの後ろに下地を敷き、重なった他の文字を隠す */
+function propSelLabelBg(){
+  const svg = document.getElementById('propSvg'); if(!svg || !propSel) return;
+  const g = [...svg.querySelectorAll('.pp')].find(x=>x.dataset.id===propSel); if(!g) return;
+  const txt = g.querySelector('text'); if(!txt) return;
+  let bg = g.querySelector('.sel-bg');
+  if(!bg){
+    bg = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    bg.setAttribute('class','sel-bg');
+    bg.setAttribute('rx','2');
+    bg.setAttribute('fill','rgba(10,31,38,0.92)');
+    g.insertBefore(bg, txt);
+  }
+  try{
+    const b = txt.getBBox();
+    bg.setAttribute('x', b.x-2); bg.setAttribute('y', b.y-1);
+    bg.setAttribute('width', b.width+4); bg.setAttribute('height', b.height+2);
+  }catch(e){}
 }
 
 function renderPropForm(){
@@ -946,10 +993,46 @@ function renderPropForm(){
   const st = document.getElementById('propSelTitle');   // 選んだペラの見出しを図の上に表示
   st.textContent = (p && p.name) ? p.name : '';
   st.style.display = (p && p.name) ? 'block' : 'none';
+  const wasOpen = document.body.classList.contains('prop-sheet-open');
+  document.body.classList.toggle('prop-sheet-open', open);
   if(!open) return;
   document.getElementById('propFormTitle').textContent = p ? 'ペラを編集' : 'ペラを追加';
-  document.getElementById('propDelBtn').style.display = p ? '' : 'none';
+  document.querySelector('#propFormPanel .del-row').style.display = p ? '' : 'none';
+  panel.scrollTop = 0;
+  autoGrowPropNote();
+  // マップの高さ = 画面の高さ − 上の見出し部分 − 編集画面
+  const head = document.querySelector('header');
+  const headH = head ? head.offsetHeight : 0;
+  const chartH = Math.max(160, window.innerHeight - headH - panel.offsetHeight - 36);
+  document.body.style.setProperty('--prop-chart-h', chartH + 'px');
+  // 編集画面を開いたとき、上半分にマップが見えるようにスクロールする
+  if(!wasOpen){
+    const wrap = document.getElementById('propChartWrap');
+    const y = wrap.getBoundingClientRect().top + window.scrollY - (head ? head.offsetHeight : 0) - 8;
+    window.scrollTo({ top: Math.max(0, y), behavior:'smooth' });
+  }
 }
+/* メモ欄を、書いた量に合わせて伸ばす */
+function autoGrowPropNote(){
+  const ta = document.getElementById('p_note');
+  ta.style.height = 'auto';
+  ta.style.height = Math.max(120, ta.scrollHeight + 2) + 'px';
+}
+document.getElementById('p_note').addEventListener('input', autoGrowPropNote);
+function closePropSheet(){
+  propSel = null; propDraft = null;
+  document.getElementById('p_name').value=''; document.getElementById('p_note').value='';
+  renderProp();
+}
+document.getElementById('propCloseX').addEventListener('click', closePropSheet);
+/* 編集画面の外をタップしても閉じる（マップとペラの一覧は除く。そこは選び直しに使う） */
+document.addEventListener('click', ev=>{
+  if(!document.body.classList.contains('prop-sheet-open')) return;
+  if(!document.getElementById('viewProp').classList.contains('active')) return;
+  const t = ev.target;
+  if(!t.closest || t.closest('#propFormPanel, #propChartWrap, .prop-row, header, .prop-float')) return;
+  closePropSheet();
+});
 
 function renderPropList(){
   const el = document.getElementById('propListArea');
@@ -1000,11 +1083,7 @@ document.getElementById('propSaveBtn').addEventListener('click', async ()=>{
   document.getElementById('p_name').value=''; document.getElementById('p_note').value='';
   renderProp();
 });
-document.getElementById('propCancelBtn').addEventListener('click', ()=>{
-  propSel = null; propDraft = null;
-  document.getElementById('p_name').value=''; document.getElementById('p_note').value='';
-  renderProp();
-});
+document.getElementById('propCancelBtn').addEventListener('click', closePropSheet);
 document.getElementById('propDelBtn').addEventListener('click', async ()=>{
   const p = propPoints.find(x=>x.id===propSel); if(!p) return;
   if(!confirm('「' + p.name + '」を削除しますか？')) return;
