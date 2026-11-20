@@ -8,20 +8,29 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
   :root{
-    --water-deep:#0A1F26;
-    --water-mid:#12313A;
-    --water-card:#163943;
-    --water-line:#264A54;
-    --foam:#EAF3F0;
-    --foam-dim:#8FADA9;
-    --buoy-gold:#D9A441;
-    --buoy-gold-dim:#8a6c30;
-    --danger:#E4463A;
+    /* 白ベースの色。名前は前の配色のときのまま */
+    --water-deep:#F4F6F5;     /* 画面の地 */
+    --water-mid:#FFFFFF;      /* 入力欄 */
+    --water-card:#FFFFFF;     /* カード */
+    --water-line:#D3DCDA;     /* 枠線 */
+    --foam:#1E2D31;           /* 文字 */
+    --foam-dim:#62777A;       /* 薄い文字 */
+    --buoy-gold:#A87414;      /* 金色の文字・線 */
+    --buoy-gold-dim:#E2C27F;  /* 金色の薄い枠 */
+    --gold-fill:#E3AD45;      /* 金色のボタン */
+    --danger:#C8372C;
+    --danger-line:#EDC1BC;
+    --shadow:rgba(30,45,49,0.14);
+    /* ペラ表の図 */
+    --chart-bg:#F8FAF9;
+    --chart-axis:#9DB0AD;
+    --chart-text:#1E2D31;
+    --chart-halo:#FFFFFF;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0; padding:0;}
   body{
-    background:radial-gradient(ellipse at 50% -10%, #1a4550 0%, transparent 60%), var(--water-deep);
+    background:var(--water-deep);
     color:var(--foam); font-family:'Noto Sans JP', sans-serif;
     min-height:100vh; padding-bottom:100px;
   }
@@ -29,7 +38,7 @@
 
   header{
     position:sticky; top:0; z-index:20;
-    background:linear-gradient(180deg, rgba(10,31,38,0.97) 78%, rgba(10,31,38,0.0));
+    background:linear-gradient(180deg, rgba(244,246,245,0.97) 78%, rgba(244,246,245,0.0));
     backdrop-filter:blur(6px); padding:18px 18px 10px;
   }
   .brand{display:flex; align-items:baseline; justify-content:space-between;}
@@ -57,7 +66,7 @@
   .view.active{display:block;}
 
   .add-btn{
-    width:100%; padding:14px; background:var(--buoy-gold); color:#241a05;
+    width:100%; padding:14px; background:var(--gold-fill); color:#241a05;
     border:none; border-radius:10px; font-family:'Oswald'; font-weight:600;
     font-size:15px; letter-spacing:0.03em; margin:16px 0; cursor:pointer;
   }
@@ -82,7 +91,7 @@
 
   .form-actions{display:flex; gap:10px; margin-top:6px;}
   .btn-save{
-    flex:1; padding:12px; background:var(--buoy-gold); color:#241a05;
+    flex:1; padding:12px; background:var(--gold-fill); color:#241a05;
     border:none; border-radius:8px; font-family:'Oswald'; font-weight:600; font-size:14px; cursor:pointer;
   }
   .btn-cancel{
@@ -108,7 +117,7 @@
     font-size:12.5px; padding:8px 14px; border-radius:7px; cursor:pointer;
     border:1px solid var(--water-line); background:transparent; color:var(--foam-dim);
   }
-  .entry-actions .del{color:var(--danger); border-color:#5a2a26;}
+  .entry-actions .del{color:var(--danger); border-color:var(--danger-line);}
   /* ペラ表 */
   .prop-btn{
     flex:none; margin-right:10px; padding:8px 12px; font-size:13px; font-weight:700; cursor:pointer;
@@ -121,7 +130,7 @@
     position:fixed; left:0; right:0; bottom:0; z-index:40; margin:0;
     max-height:42vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
     border-radius:16px 16px 0 0; border-bottom:none; padding:14px 16px 0;
-    box-shadow:0 -6px 20px rgba(0,0,0,.55);
+    box-shadow:0 -6px 20px var(--shadow);
   }
   #propFormPanel .sheet-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
   #propFormPanel .sheet-head h2{margin:0;}
@@ -138,7 +147,7 @@
   body.prop-sheet-open #viewProp.active{padding-bottom:50vh;}
   /* 編集画面を開いている間は、マップを縮めて全体が見えるようにする */
   body.prop-sheet-open #propSvg{width:auto; height:var(--prop-chart-h, auto); max-width:100%; margin:0 auto;}
-  .prop-float{position:fixed; top:10px; right:14px; z-index:50; margin:0; background:rgba(10,31,38,0.95); box-shadow:0 2px 10px rgba(0,0,0,.5);}
+  .prop-float{position:fixed; top:10px; right:14px; z-index:50; margin:0; background:rgba(255,255,255,0.97); box-shadow:0 2px 10px var(--shadow);}
   .prop-hint{font-size:13px; color:var(--foam-dim); line-height:1.7; margin:6px 2px 0;}
   .chart-wrap{background:var(--water-card); border:1px solid var(--water-line); border-radius:14px; padding:8px; margin:12px 0 16px;}
   #propSvg{display:block; width:100%; height:auto; touch-action:manipulation; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;}
@@ -149,15 +158,15 @@
   #propLoupe{
     position:fixed; z-index:60; display:none; pointer-events:none;
     width:130px; height:130px; border-radius:50%; overflow:hidden;
-    border:2px solid var(--buoy-gold); background:#0F2A33; box-shadow:0 4px 14px rgba(0,0,0,.6);
+    border:2px solid var(--buoy-gold); background:var(--chart-bg); box-shadow:0 4px 14px var(--shadow);
   }
   #propLoupe svg{display:block;}
   #propLoupe .dragging circle{transform:none;}   /* 窓の中では○を大きくしない（位置を正確に見るため） */
-  #propLoupe .lp-h, #propLoupe .lp-v{position:absolute; background:rgba(234,243,240,0.55);}
+  #propLoupe .lp-h, #propLoupe .lp-v{position:absolute; background:rgba(30,45,49,0.55);}
   #propLoupe .lp-h{left:50%; top:50%; width:22px; height:1px; margin-left:-11px;}
   #propLoupe .lp-v{left:50%; top:50%; width:1px; height:22px; margin-top:-11px;}
   .prop-pos-line{font-family:'Oswald'; font-size:14px; color:var(--buoy-gold); margin:-4px 0 14px;}
-  .btn-del{padding:12px 16px; background:transparent; color:var(--danger); border:1px solid #5a2a26; border-radius:8px; cursor:pointer; font-size:13px;}
+  .btn-del{padding:12px 16px; background:transparent; color:var(--danger); border:1px solid var(--danger-line); border-radius:8px; cursor:pointer; font-size:13px;}
   .prop-list-title{font-size:13px; color:var(--foam-dim); margin:4px 2px 8px;}
   .prop-row{display:flex; align-items:center; gap:10px; padding:11px 12px; background:var(--water-card); border:1px solid var(--water-line); border-radius:10px; margin-bottom:8px; cursor:pointer;}
   .prop-row.sel{border-color:var(--buoy-gold);}
@@ -176,7 +185,7 @@
     white-space:pre-wrap; word-break:break-word;
   }
   .day-text{font-size:15px; line-height:1.95; white-space:pre-wrap; word-break:break-word; color:var(--foam);}
-  mark{background:rgba(217,164,65,0.35); color:#fff; border-radius:2px;}
+  mark{background:rgba(227,173,69,0.4); color:inherit; border-radius:2px;}
 
   .searchbar{margin-bottom:12px;}
   .searchbar input[type=text]{
@@ -226,7 +235,7 @@
   .backup-box{
     margin:28px 0 10px; padding:16px;
     border:1px solid var(--water-line); border-radius:12px;
-    background:rgba(255,255,255,0.02);
+    background:rgba(30,45,49,0.03);
   }
   .backup-box .backup-title{
     font-family:'Oswald'; font-weight:600; font-size:14px;
@@ -810,6 +819,8 @@ const META_PROMPT = `以下のボートレーサーの整備メモから、基�
 /* x: -1=捻 〜 +1=広 / y: -1=低 〜 +1=高。画面上は 200x200 の座標で描く */
 const PROP_COLORS = ['#D9A441','#5EC4E8','#E8735E','#7ED68A','#C58BE8','#E8D85E','#E88BB6','#8BA7E8'];
 const PC = 100, PR = 76;
+/* 図の色は、上の :root の色（--chart-…）から読む */
+function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 let propPoints = [];
 let propSel = null;      // 選択中の点のid
 let propDraft = null;    // 追加しようとしている位置 {x,y}
@@ -854,13 +865,15 @@ function renderPropChart(){
   const L = 20, R = 180;
   const t = (x,y,anchor,size,fill,txt,extra='') =>
     `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="${size}" fill="${fill}" ${extra}>${txt}</text>`;
+  const cBg = cssVar('--chart-bg'), cLine = cssVar('--water-line'), cAxis = cssVar('--chart-axis'),
+        cText = cssVar('--chart-text'), cHalo = cssVar('--chart-halo');
   let s = `<svg id="propSvg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">`;
-  s += `<rect x="${L}" y="${L}" width="${R-L}" height="${R-L}" rx="4" fill="rgba(10,31,38,0.55)" stroke="#264A54"/>`;
-  s += `<line x1="${L}" y1="${PC}" x2="${R}" y2="${PC}" stroke="#8FADA9" stroke-width="0.8"/>`;
-  s += `<line x1="${PC}" y1="${L}" x2="${PC}" y2="${R}" stroke="#8FADA9" stroke-width="0.8"/>`;
-  s += t(PC,13,'middle',11,'#EAF3F0','高') + t(PC,196,'middle',11,'#EAF3F0','低');
-  s += t(10,PC+4,'middle',11,'#EAF3F0','捻') + t(190,PC+4,'middle',11,'#EAF3F0','広');
-  const q = '#8FADA9';
+  s += `<rect x="${L}" y="${L}" width="${R-L}" height="${R-L}" rx="4" fill="${cBg}" stroke="${cLine}"/>`;
+  s += `<line x1="${L}" y1="${PC}" x2="${R}" y2="${PC}" stroke="${cAxis}" stroke-width="0.8"/>`;
+  s += `<line x1="${PC}" y1="${L}" x2="${PC}" y2="${R}" stroke="${cAxis}" stroke-width="0.8"/>`;
+  s += t(PC,13,'middle',11,cText,'高') + t(PC,196,'middle',11,cText,'低');
+  s += t(10,PC+4,'middle',11,cText,'捻') + t(190,PC+4,'middle',11,cText,'広');
+  const q = cAxis;
   s += t(L+4,L+11,'start',7,q,'高・捻','opacity="0.6"') + t(R-4,L+11,'end',7,q,'高・広','opacity="0.6"');
   s += t(L+4,R-5,'start',7,q,'低・捻','opacity="0.6"') + t(R-4,R-5,'end',7,q,'低・広','opacity="0.6"');
 
@@ -873,11 +886,11 @@ function renderPropChart(){
     const right = cx < 130;
     const sel = p.id === propSel;
     s += `<g class="pp" data-id="${escapeHtml(p.id)}">`;
-    if(sel) s += `<circle cx="${cx}" cy="${cy}" r="8.5" fill="none" stroke="#EAF3F0" stroke-width="1.2"/>`;
+    if(sel) s += `<circle cx="${cx}" cy="${cy}" r="8.5" fill="none" stroke="${cText}" stroke-width="1.2"/>`;
     s += `<circle cx="${cx}" cy="${cy}" r="12" fill="transparent"/>`;
-    s += `<circle cx="${cx}" cy="${cy}" r="5" fill="${p.color||PROP_COLORS[0]}" stroke="#0A1F26" stroke-width="1"/>`;
-    s += t(right?cx+9:cx-9, cy+2.5, right?'start':'end', 7.5, '#EAF3F0', escapeHtml(p.name),
-      'stroke="#0A1F26" stroke-width="2.2" paint-order="stroke" stroke-linejoin="round"');
+    s += `<circle cx="${cx}" cy="${cy}" r="5" fill="${p.color||PROP_COLORS[0]}" stroke="${cHalo}" stroke-width="1"/>`;
+    s += t(right?cx+9:cx-9, cy+2.5, right?'start':'end', 7.5, cText, escapeHtml(p.name),
+      `stroke="${cHalo}" stroke-width="2.2" paint-order="stroke" stroke-linejoin="round"`);
     s += `</g>`;
   });
   if(propDraft){
@@ -1026,7 +1039,7 @@ function propLoupeShow(pt){
   // 窓の中心 = 指の位置の図上の座標
   const cx = (pt.clientX - r.left) / unit, cy = (pt.clientY - r.top) / unit;
   lp.innerHTML = `<svg viewBox="${cx-span/2} ${cy-span/2} ${span} ${span}" width="${PROP_LOUPE_SIZE}" height="${PROP_LOUPE_SIZE}">` +
-    `<rect x="-50" y="-50" width="300" height="300" fill="#0F2A33"/>` + svg.innerHTML + `</svg>` +
+    `<rect x="-50" y="-50" width="300" height="300" fill="${cssVar('--water-card')}"/>` + svg.innerHTML + `</svg>` +
     `<span class="lp-h"></span><span class="lp-v"></span>`;
   // 置き場所: 指の上。上の見出し部分に隠れるときは、指の横
   const head = document.querySelector('header');
@@ -1067,7 +1080,7 @@ function propSelLabelBg(){
     bg = document.createElementNS('http://www.w3.org/2000/svg','rect');
     bg.setAttribute('class','sel-bg');
     bg.setAttribute('rx','2');
-    bg.setAttribute('fill','rgba(10,31,38,0.92)');
+    bg.setAttribute('fill','rgba(255,255,255,0.94)');
     g.insertBefore(bg, txt);
   }
   try{
