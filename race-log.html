@@ -141,8 +141,21 @@
   .prop-float{position:fixed; top:10px; right:14px; z-index:50; margin:0; background:rgba(10,31,38,0.95); box-shadow:0 2px 10px rgba(0,0,0,.5);}
   .prop-hint{font-size:13px; color:var(--foam-dim); line-height:1.7; margin:6px 2px 0;}
   .chart-wrap{background:var(--water-card); border:1px solid var(--water-line); border-radius:14px; padding:8px; margin:12px 0 16px;}
-  #propSvg{display:block; width:100%; height:auto; touch-action:none; user-select:none; -webkit-user-select:none;}
+  #propSvg{display:block; width:100%; height:auto; touch-action:manipulation; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;}
   #propSvg .pp{cursor:grab;}
+  /* 長押しで動かせる状態になった○は少し大きく見せる */
+  #propSvg .dragging circle{transform-box:fill-box; transform-origin:center; transform:scale(1.5);}
+  /* 動かしている間の拡大窓 */
+  #propLoupe{
+    position:fixed; z-index:60; display:none; pointer-events:none;
+    width:130px; height:130px; border-radius:50%; overflow:hidden;
+    border:2px solid var(--buoy-gold); background:#0F2A33; box-shadow:0 4px 14px rgba(0,0,0,.6);
+  }
+  #propLoupe svg{display:block;}
+  #propLoupe .dragging circle{transform:none;}   /* 窓の中では○を大きくしない（位置を正確に見るため） */
+  #propLoupe .lp-h, #propLoupe .lp-v{position:absolute; background:rgba(234,243,240,0.55);}
+  #propLoupe .lp-h{left:50%; top:50%; width:22px; height:1px; margin-left:-11px;}
+  #propLoupe .lp-v{left:50%; top:50%; width:1px; height:22px; margin-top:-11px;}
   .prop-pos-line{font-family:'Oswald'; font-size:14px; color:var(--buoy-gold); margin:-4px 0 14px;}
   .btn-del{padding:12px 16px; background:transparent; color:var(--danger); border:1px solid #5a2a26; border-radius:8px; cursor:pointer; font-size:13px;}
   .prop-list-title{font-size:13px; color:var(--foam-dim); margin:4px 2px 8px;}
@@ -310,7 +323,7 @@
     <div class="back-row" id="propBackBtn"><span class="arrow">← メモに戻る</span></div>
     <div class="vtitle" id="propMemoTitle" style="margin-bottom:6px;"></div>
   </div>
-  <div class="prop-hint">図の好きな位置をタップして、ペラを置きます。置いた点はドラッグで動かせます。</div>
+  <div class="prop-hint">図の好きな位置をタップして、ペラを置きます。置いた点は長押ししてから動かせます。</div>
   <div id="propSelTitle" style="display:none; margin:10px 0 0; padding:8px 12px; font-size:15px; font-weight:700; color:var(--buoy-gold); background:rgba(217,164,65,0.16); border:1px solid var(--buoy-gold-dim); border-radius:10px;"></div>
   <div class="chart-wrap" id="propChartWrap"></div>
 
@@ -898,58 +911,137 @@ function bindPropChart(){
     if(wasEditing){ document.getElementById('p_name').value=''; document.getElementById('p_note').value=''; }
     renderProp();
   });
-  // 置く途中の点 → ドラッグで位置を動かす
+  // 置く途中の点 → 長押ししてから、ドラッグで位置を動かす
   svg.querySelectorAll('.pd').forEach(g=>{
-    g.addEventListener('pointerdown', ev=>{
-      ev.preventDefault();
-      g.setPointerCapture(ev.pointerId);
-      const move = e=>{
-        propDraft = propPointFromEvent(svg, e);
-        renderPropChartKeep(g, propDraft);
-      };
-      const up = ()=>{
-        g.removeEventListener('pointermove', move);
-        g.removeEventListener('pointerup', up);
-        g.removeEventListener('pointercancel', up);
-        propLastTouch = Date.now();
-      };
-      g.addEventListener('pointermove', move);
-      g.addEventListener('pointerup', up);
-      g.addEventListener('pointercancel', up);
+    propLongPressDrag(g, {
+      onMove: pos=>{ propDraft = pos; renderPropChartKeep(g, propDraft); },
+      onEnd: ()=>{}
     });
   });
-  // 点をタップ → 選択 / ドラッグ → 移動
+  // 点をタップ → 選択 / 長押ししてからドラッグ → 移動
   svg.querySelectorAll('.pp').forEach(g=>{
-    g.addEventListener('pointerdown', ev=>{
-      ev.preventDefault();
-      const id = g.dataset.id;
+    const id = g.dataset.id;
+    const select = ()=>{
       const p = propPoints.find(x=>x.id===id); if(!p) return;
-      const startX = ev.clientX, startY = ev.clientY;
-      let moved = false;
-      g.setPointerCapture(ev.pointerId);
-      const move = e=>{
-        if(!moved && Math.hypot(e.clientX-startX, e.clientY-startY) < 5) return;
-        moved = true;
-        const pos = propPointFromEvent(svg, e);
+      propSel = id; propDraft = null;
+      document.getElementById('p_name').value = p.name || '';
+      document.getElementById('p_note').value = p.note || '';
+      renderProp();
+    };
+    propLongPressDrag(g, {
+      onTap: select,
+      onMove: pos=>{
+        const p = propPoints.find(x=>x.id===id); if(!p) return;
         p.x = pos.x; p.y = pos.y;
         renderPropChartKeep(g, p);
-      };
-      const up = async e=>{
-        g.removeEventListener('pointermove', move);
-        g.removeEventListener('pointerup', up);
-        g.removeEventListener('pointercancel', up);
-        propLastTouch = Date.now();
+      },
+      onEnd: async moved=>{
+        const p = propPoints.find(x=>x.id===id); if(!p) return;
         if(moved) await savePropPoint(p);
-        propSel = id; propDraft = null;
-        document.getElementById('p_name').value = p.name || '';
-        document.getElementById('p_note').value = p.note || '';
-        renderProp();
-      };
-      g.addEventListener('pointermove', move);
-      g.addEventListener('pointerup', up);
-      g.addEventListener('pointercancel', up);
+        select();
+      }
     });
   });
+}
+
+/* ○の操作: 軽いタップ → onTap / すぐ指を動かす → 普通のスクロール /
+   長押し(PROP_HOLD_MS)してから動かす → ○を移動（拡大窓つき） */
+const PROP_HOLD_MS = 500;   // 長押しの長さ（ミリ秒）
+const PROP_SLOP = 10;       // これ以上指が動いたら「スクロール」とみなす（px）
+function propLongPressDrag(g, h){
+  const svg = document.getElementById('propSvg');
+  let st = null;   // { x, y, timer, active, moved }
+  const begin = (x, y)=>{
+    st = { x, y, active:false, moved:false, sy:window.scrollY };
+    st.timer = setTimeout(()=>{
+      if(!st) return;
+      if(Math.abs(window.scrollY - st.sy) > 2){ st = null; return; }   // 待つ間にスクロールしていたら取り消す
+      st.active = true;
+      g.classList.add('dragging');            // ○が少し大きくなる＝動かせる合図
+      propLoupeShow({clientX:x, clientY:y});
+    }, PROP_HOLD_MS);
+  };
+  const move = (x, y, ev)=>{
+    if(!st) return;
+    if(!st.active){
+      if(Math.hypot(x-st.x, y-st.y) >= PROP_SLOP){ clearTimeout(st.timer); st = null; }  // スクロールに任せる
+      return;
+    }
+    if(ev && ev.type === 'touchmove'){
+      if(!ev.cancelable){ end(true); return; }   // すでにスクロールが始まっていたら、動かすのをやめる
+      ev.preventDefault();
+    }
+    st.moved = true;
+    const pt = {clientX:x, clientY:y};
+    h.onMove(propPointFromEvent(svg, pt));
+    propLoupeShow(pt);
+  };
+  const end = cancelled=>{
+    if(!st) return;
+    clearTimeout(st.timer);
+    const s = st; st = null;
+    g.classList.remove('dragging');
+    propLoupeHide();
+    propLastTouch = Date.now();
+    if(s.active) h.onEnd && h.onEnd(s.moved);
+    else if(!cancelled) h.onTap && h.onTap();
+  };
+  // スマホ（指）
+  g.addEventListener('touchstart', ev=>{
+    if(ev.touches.length !== 1){ end(true); return; }
+    const t = ev.touches[0]; begin(t.clientX, t.clientY);
+  }, {passive:true});
+  g.addEventListener('touchmove', ev=>{
+    const t = ev.touches[0]; if(t) move(t.clientX, t.clientY, ev);
+  }, {passive:false});
+  g.addEventListener('touchend', ev=>{ if(st && ev.cancelable) ev.preventDefault(); end(false); });
+  g.addEventListener('touchcancel', ()=>end(true));
+  g.addEventListener('contextmenu', ev=>ev.preventDefault());
+  // パソコン（マウス）
+  g.addEventListener('pointerdown', ev=>{
+    if(ev.pointerType !== 'mouse') return;
+    ev.preventDefault();
+    g.setPointerCapture(ev.pointerId);
+    begin(ev.clientX, ev.clientY);
+  });
+  g.addEventListener('pointermove', ev=>{ if(ev.pointerType === 'mouse') move(ev.clientX, ev.clientY, ev); });
+  g.addEventListener('pointerup', ev=>{ if(ev.pointerType === 'mouse') end(false); });
+  g.addEventListener('pointercancel', ev=>{ if(ev.pointerType === 'mouse') end(true); });
+}
+
+/* 拡大窓: 動かしている○とその周りを、指の少し上に大きく映す */
+const PROP_LOUPE_ZOOM = 2.5;   // 拡大の倍率
+const PROP_LOUPE_SIZE = 130;   // 窓の大きさ（px）
+function propLoupeShow(pt){
+  const svg = document.getElementById('propSvg'); if(!svg) return;
+  let lp = document.getElementById('propLoupe');
+  if(!lp){
+    lp = document.createElement('div');
+    lp.id = 'propLoupe';
+    document.body.appendChild(lp);
+  }
+  const r = svg.getBoundingClientRect();
+  const unit = r.width / 200;                       // 図の1目盛りが何pxか
+  const span = PROP_LOUPE_SIZE / (unit * PROP_LOUPE_ZOOM);
+  // 窓の中心 = 指の位置の図上の座標
+  const cx = (pt.clientX - r.left) / unit, cy = (pt.clientY - r.top) / unit;
+  lp.innerHTML = `<svg viewBox="${cx-span/2} ${cy-span/2} ${span} ${span}" width="${PROP_LOUPE_SIZE}" height="${PROP_LOUPE_SIZE}">` +
+    `<rect x="-50" y="-50" width="300" height="300" fill="#0F2A33"/>` + svg.innerHTML + `</svg>` +
+    `<span class="lp-h"></span><span class="lp-v"></span>`;
+  // 置き場所: 指の上。上の見出し部分に隠れるときは、指の横
+  const head = document.querySelector('header');
+  const topLimit = (head ? head.getBoundingClientRect().bottom : 0) + 6;
+  const half = PROP_LOUPE_SIZE / 2;
+  let x = pt.clientX, y = pt.clientY - 110;
+  if(y - half < topLimit){ y = Math.max(topLimit + half, pt.clientY); x = pt.clientX + (pt.clientX < window.innerWidth/2 ? 110 : -110); }
+  x = Math.max(half + 4, Math.min(window.innerWidth - half - 4, x));
+  lp.style.left = (x - half) + 'px';
+  lp.style.top = (y - half) + 'px';
+  lp.style.display = 'block';
+}
+function propLoupeHide(){
+  const lp = document.getElementById('propLoupe');
+  if(lp) lp.style.display = 'none';
 }
 /* ドラッグ中は点だけ動かす（全体を描き直さない） */
 function renderPropChartKeep(g, p){
