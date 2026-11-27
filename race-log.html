@@ -411,7 +411,9 @@ function highlight(text, q){
   }catch(e){ return safe; }
 }
 function bind(root, sel, evt, fn){ root.querySelectorAll(sel).forEach(n=>n.addEventListener(evt, fn)); }
+const UNSET_VENUE = 'レース場未設定';   // レース場が空のメモをまとめる括りの名前
 function venueMatch(entry, name){
+  if(name === UNSET_VENUE) return !entry.venue;
   if(!entry.venue) return false;
   return entry.venue === name || entry.venue.includes(name) || name.includes(entry.venue);
 }
@@ -587,7 +589,7 @@ function renderVenueTab(){
 }
 function renderVenueList(){
   const el = document.getElementById('venueList');
-  el.innerHTML = ALL_VENUES.map(v=>{
+  el.innerHTML = ALL_VENUES.concat([UNSET_VENUE]).map(v=>{
     const count = setupEntries.filter(e=>venueMatch(e,v)).length;
     return `<div class="venue-row ${count===0?'empty-venue':''}" data-venue="${escapeHtml(v)}">
       <span class="vname">${escapeHtml(v)}</span>
@@ -604,7 +606,7 @@ function renderVenueDetail(){
   const el = document.getElementById('venueDetailList');
   const list = setupEntries.filter(e=>venueMatch(e,browsingVenue))
     .sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.createdAt-a.createdAt));
-  if(!list.length){ el.innerHTML = '<div class="empty">まだ'+escapeHtml(browsingVenue)+'の記録がありません。</div>'; return; }
+  if(!list.length){ el.innerHTML = '<div class="empty">'+(browsingVenue===UNSET_VENUE ? 'レース場が未設定のメモはありません。' : 'まだ'+escapeHtml(browsingVenue)+'の記録がありません。')+'</div>'; return; }
   el.innerHTML = list.map(e=>entryCardHtml(e,'')).join('');
   bindCardEvents(el);
 }
@@ -730,27 +732,7 @@ async function saveSetup(){
   // 空欄はまず本文から自動で拾う
   applyLocalParse();
 
-  // それでもレース場が分からなければ、AIに整理してもらう
-  if(!g('s_venue') && body.trim()){
-    btn.textContent='情報を整理中…';
-    try{
-      const metaText = await callClaude([{ type:'text', text: META_PROMPT + body.slice(0, 3000) }]);
-      let clean = metaText.replace(/```json|```/g,'').trim();
-      const a = clean.indexOf('{'), b2 = clean.lastIndexOf('}');
-      if(a !== -1 && b2 !== -1){
-        const parsed = JSON.parse(clean.slice(a, b2+1));
-        const fill = (id,val)=>{ const el=document.getElementById(id); if(val && !el.value.trim()) el.value=val; };
-        fill('s_venue', parsed.venue);
-        fill('s_period', parsed.period);
-        fill('s_engine', parsed.engine);
-        fill('s_temp', parsed.temp);
-        fill('s_press', parsed.press);
-        const dEl = document.getElementById('s_date');
-        if(parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) && (!dEl.value || dEl.value === todayStr())) dEl.value = parsed.date;
-      }
-    }catch(err){ /* 取れなくても保存は続行 */ }
-    btn.textContent='保存中…';
-  }
+  // レース場が分からなくても、そのまま保存する（メモを外部へ送る処理は持たない）
 
   const id = editingSetupId || genId('s');
   const data = {
@@ -786,37 +768,6 @@ document.getElementById('setupCancelBtn').addEventListener('click',()=>{ closeSe
 document.getElementById('setupSaveBtn').addEventListener('click', saveSetup);
 document.getElementById('s_body').addEventListener('blur', ()=>{ applyLocalParse(); });
 document.getElementById('s_body').addEventListener('paste', ()=>{ setTimeout(applyLocalParse, 60); });
-
-/* ================= AUTO EXTRACTION ================= */
-async function callClaude(content){
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json' },
-    body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000, messages:[{ role:'user', content }] })
-  });
-  const data = await res.json();
-  if(!res.ok || data.error){
-    throw new Error((data.error && data.error.message) ? data.error.message : ('HTTPエラー ' + res.status));
-  }
-  const text = (data.content||[]).filter(i=>i.type==='text').map(i=>i.text).join('\n');
-  if(!text.trim()) throw new Error('応答が空でした');
-  return text;
-}
-
-const META_PROMPT = `以下のボートレーサーの整備メモから、基本情報だけをJSONで抽出してください。
-説明やコードフェンスは書かず、JSONオブジェクトのみを出力すること。
-
-{
-  "venue": "レース場名（例: 児島。不明なら空文字）",
-  "period": "開催期間の表記そのまま（例: 2026.6/30-7/5）",
-  "date": "開始日をYYYY-MM-DD形式で（不明なら空文字）",
-  "engine": "エンジン番号や成績（例: 49号機 36%）",
-  "temp": "気温の表記（例: 22-26℃）",
-  "press": "気圧の表記（例: 1005-1010hPa）"
-}
-
---- メモ ---
-`;
 
 /* ================= PROP CHART（ペラ表） ================= */
 /* x: -1=捻 〜 +1=広 / y: -1=低 〜 +1=高。画面上は 200x200 の座標で描く */
