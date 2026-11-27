@@ -321,19 +321,6 @@
 
   <div id="setupListArea"><div class="loading">読み込み中…</div></div>
 
-  <div class="backup-box">
-    <div class="backup-title">バックアップ</div>
-    <div class="hint">
-      機種変更やブラウザのデータ消去に備えて、記録をファイルに書き出せます。<br>
-      新しい端末では、書き出したファイルを「読み込む」で元に戻せます。
-    </div>
-    <div class="import-actions">
-      <button class="btn-mini" id="exportBtn" type="button">⬇️ バックアップを書き出す</button>
-      <button class="btn-mini" id="importBtn" type="button">⬆️ バックアップを読み込む</button>
-    </div>
-    <input type="file" id="backupInput" accept=".json,application/json" style="display:none">
-    <div class="import-status" id="backupStatus"></div>
-  </div>
 </div>
 
 <div class="view" id="viewVenue">
@@ -374,6 +361,24 @@
   <div class="back-row" id="settingsBackBtn"><span class="arrow">← 戻る</span></div>
   <div class="vtitle" style="margin-bottom:14px;">設定</div>
   <div class="venue-row" id="openHowtoBtn"><span class="vname">使い方</span><span class="arrow">›</span></div>
+  <div class="venue-row" id="openBackupBtn"><span class="vname">バックアップ</span><span class="arrow">›</span></div>
+</div>
+
+<div class="view" id="viewBackup">
+  <div class="back-row" id="backupBackBtn"><span class="arrow">← 設定に戻る</span></div>
+  <div class="vtitle" style="margin-bottom:14px;">バックアップ</div>
+  <div class="backup-box" style="margin-top:0;">
+    <div class="hint">
+      機種変更やブラウザのデータ消去に備えて、記録をファイルに書き出せます。<br>
+      新しい端末では、書き出したファイルを「読み込む」で元に戻せます。
+    </div>
+    <div class="import-actions">
+      <button class="btn-mini" id="exportBtn" type="button">⬇️ バックアップを書き出す</button>
+      <button class="btn-mini" id="importBtn" type="button">⬆️ バックアップを読み込む</button>
+    </div>
+    <input type="file" id="backupInput" accept=".json,application/json" style="display:none">
+    <div class="import-status" id="backupStatus"></div>
+  </div>
 </div>
 
 <div class="view" id="viewHowto">
@@ -418,7 +423,7 @@
   <div class="howto-sec">
     <h3>4. バックアップ（とても大切）</h3>
     <p>メモは、この端末の中だけに入っています。ブラウザのデータを消したり、機種変更をしたりすると、消えることがあります。</p>
-    <ol><li>「メモ検索」の一番下で「バックアップを書き出す」を押します。</li><li>できたファイルを、「ファイル」アプリやiCloudに保存します。</li><li>戻すときは「バックアップを読み込む」を押します。</li></ol>
+    <ol><li>画面の右上の歯車（⚙）を押し、「バックアップ」を押して、「バックアップを書き出す」を押します。</li><li>できたファイルを、「ファイル」アプリやiCloudに保存します。</li><li>戻すときは「バックアップを読み込む」を押します。</li></ol>
     <img class="howto-img" src="howto/07_backup.png" alt="バックアップのボタン" loading="lazy">
   </div>
 
@@ -551,7 +556,7 @@ document.getElementById('tabProp').addEventListener('click', ()=>switchTab('prop
 /* 設定ページ・使い方ページ（右上の歯車から開く） */
 let settingsReturnTab = 'search';
 function showSettingsView(id){
-  ['viewSearch','viewVenue','viewProp','viewSettings','viewHowto'].forEach(v=>document.getElementById(v).classList.toggle('active', v===id));
+  ['viewSearch','viewVenue','viewProp','viewSettings','viewHowto','viewBackup'].forEach(v=>document.getElementById(v).classList.toggle('active', v===id));
   window.scrollTo({ top:0 });
 }
 document.getElementById('settingsBtn').addEventListener('click', ()=>{
@@ -563,11 +568,14 @@ document.getElementById('settingsBtn').addEventListener('click', ()=>{
 document.getElementById('settingsBackBtn').addEventListener('click', ()=>switchTab(settingsReturnTab));
 document.getElementById('openHowtoBtn').addEventListener('click', ()=>showSettingsView('viewHowto'));
 document.getElementById('howtoBackBtn').addEventListener('click', ()=>showSettingsView('viewSettings'));
+document.getElementById('openBackupBtn').addEventListener('click', ()=>showSettingsView('viewBackup'));
+document.getElementById('backupBackBtn').addEventListener('click', ()=>showSettingsView('viewSettings'));
 
 function switchTab(which){
   propScope = null; propSel = null; propDraft = null;
   document.getElementById('viewSettings').classList.remove('active');
   document.getElementById('viewHowto').classList.remove('active');
+  document.getElementById('viewBackup').classList.remove('active');
   [['search','Search'],['venue','Venue'],['prop','Prop']].forEach(([k,cap])=>{
     document.getElementById('tab'+cap).classList.toggle('active', k===which);
     document.getElementById('view'+cap).classList.toggle('active', k===which);
