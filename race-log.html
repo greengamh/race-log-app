@@ -1209,7 +1209,9 @@ document.getElementById('propDelBtn').addEventListener('click', async ()=>{
 function openMemoProp(memoId){
   if(!setupEntries.some(e=>e.id===memoId)) return;
   const onVenue = document.getElementById('viewVenue').classList.contains('active');
-  propReturn = { tab: onVenue ? 'venue' : 'search', venue: browsingVenue, memoId };
+  // 戻ったときに同じ場所へ戻すため、スクロール位置と開いていたメモを覚える
+  const openIds = [...document.querySelectorAll('.setup-entry.open')].map(c=>c.getAttribute('data-id'));
+  propReturn = { tab: onVenue ? 'venue' : 'search', venue: browsingVenue, memoId, scrollY: window.scrollY, openIds };
   propScope = memoId; propSel = null; propDraft = null;
   document.getElementById('p_name').value = ''; document.getElementById('p_note').value = '';
   ['viewSearch','viewVenue'].forEach(id=>document.getElementById(id).classList.remove('active'));
@@ -1256,7 +1258,13 @@ document.getElementById('propBackBtn').addEventListener('click', ()=>{
   renderSetup();                    // 「ペラ(n)」の数を更新
   const box = ret.tab === 'venue' ? '#venueDetailList' : '#setupListArea';
   const card = document.querySelector(`${box} .setup-entry[data-id="${CSS.escape(String(ret.memoId))}"]`);
-  if(card){ card.classList.add('open'); card.scrollIntoView({ block:'start' }); }
+  if(card) card.classList.add('open');
+  (ret.openIds || []).forEach(id=>{
+    const c = document.querySelector(`${box} .setup-entry[data-id="${CSS.escape(String(id))}"]`);
+    if(c) c.classList.add('open');
+  });
+  if(typeof ret.scrollY === 'number') window.scrollTo(0, ret.scrollY);   // 見ていた場所へ戻す
+  else if(card) card.scrollIntoView({ block:'start' });
   propReturn = null;
 });
 
