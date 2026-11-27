@@ -138,7 +138,7 @@
   /* ペラの編集画面: 画面の下から出す（上のマップは見えたまま） */
   #propFormPanel{
     position:fixed; left:0; right:0; bottom:0; z-index:40; margin:0;
-    max-height:42vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    max-height:42vh; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
     border-radius:16px 16px 0 0; border-bottom:none; padding:14px 16px 0;
     box-shadow:0 -6px 20px var(--shadow);
   }
@@ -1180,7 +1180,32 @@ function autoGrowPropNote(){
   ta.style.height = 'auto';
   ta.style.height = Math.max(120, ta.scrollHeight + 2) + 'px';
 }
-document.getElementById('p_note').addEventListener('input', autoGrowPropNote);
+/* 入力中の行が「保存する」の帯やキーボードに隠れないよう、見える位置までスクロールする */
+function keepPropNoteVisible(){
+  const panel = document.getElementById('propFormPanel');
+  const ta = document.getElementById('p_note');
+  if(!panel.classList.contains('open') || document.activeElement !== ta) return;
+  const bar = panel.querySelector('.form-actions');
+  const limit = bar.getBoundingClientRect().top - 12;     // 帯の少し上まで
+  const over = ta.getBoundingClientRect().bottom - limit;
+  if(over > 0) panel.scrollTop += over;
+}
+document.getElementById('p_note').addEventListener('input', ()=>{ autoGrowPropNote(); keepPropNoteVisible(); });
+document.getElementById('p_note').addEventListener('focus', ()=>setTimeout(keepPropNoteVisible, 350));
+/* キーボードが出たら、編集画面をキーボードの上に載せ、高さも見える範囲に合わせる */
+function fitPropSheetToKeyboard(){
+  const panel = document.getElementById('propFormPanel');
+  const vv = window.visualViewport;
+  if(!vv) return;
+  const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+  panel.style.bottom = kb + 'px';
+  panel.style.maxHeight = (kb > 80 ? Math.round(vv.height * 0.78) : Math.round(window.innerHeight * 0.42)) + 'px';
+  keepPropNoteVisible();
+}
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', fitPropSheetToKeyboard);
+  window.visualViewport.addEventListener('scroll', fitPropSheetToKeyboard);
+}
 function closePropSheet(){
   propSel = null; propDraft = null;
   document.getElementById('p_name').value=''; document.getElementById('p_note').value='';
