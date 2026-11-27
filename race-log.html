@@ -170,7 +170,12 @@
   .prop-list-title{font-size:13px; color:var(--foam-dim); margin:4px 2px 8px;}
   .prop-row{display:flex; align-items:center; gap:10px; padding:11px 12px; background:var(--water-card); border:1px solid var(--water-line); border-radius:10px; margin-bottom:8px; cursor:pointer;}
   .prop-row.sel{border-color:var(--buoy-gold);}
-  .prop-dot{width:14px; height:14px; border-radius:50%; flex:none;}
+  .prop-dot{width:26px; height:26px; border-radius:50%; flex:none; border:2px solid var(--water-line); padding:0; cursor:pointer;}
+  .prop-palette{background:var(--water-card); border:1px solid var(--water-line); border-radius:10px; padding:10px 12px; margin:-2px 0 8px;}
+  .prop-palette-title{font-size:13px; color:var(--foam-dim); margin-bottom:8px;}
+  .prop-palette-grid{display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px;}
+  .prop-swatch{display:flex; flex-direction:column; align-items:center; gap:4px; padding:6px 2px; font-size:12px; background:transparent; color:var(--foam); border:1px solid var(--water-line); border-radius:8px; cursor:pointer;}
+  .prop-swatch span{width:26px; height:26px; border-radius:50%; border:1px solid var(--water-line); display:block;}
   .prop-info{flex:1; min-width:0;}
   .prop-name{font-weight:700; font-size:15px; color:var(--foam);}
   .prop-sub{font-size:13px; color:var(--foam-dim); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
@@ -771,7 +776,10 @@ document.getElementById('s_body').addEventListener('paste', ()=>{ setTimeout(app
 
 /* ================= PROP CHART（ペラ表） ================= */
 /* x: -1=捻 〜 +1=広 / y: -1=低 〜 +1=高。画面上は 200x200 の座標で描く */
-const PROP_COLORS = ['#D9A441','#5EC4E8','#E8735E','#7ED68A','#C58BE8','#E8D85E','#E88BB6','#8BA7E8'];
+/* ペラの丸の色の候補（原色中心。一覧の色の丸をタップして選ぶ）。新しいペラは、この順に自動で色が付く */
+const PROP_PALETTE = [['赤','#E60000'],['青','#0040FF'],['黄','#FFD800'],['緑','#00A000'],['橙','#FF8000'],['紫','#8000FF'],['水色','#00C8FF'],['桃','#FF60C0'],['黒','#000000'],['茶','#8B4513']];
+const PROP_COLORS = PROP_PALETTE.map(c=>c[1]);
+let propColorFor = null;   // 色を選んでいるペラのid
 const PC = 100, PR = 76;
 /* 図の色は、上の :root の色（--chart-…）から読む */
 function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
@@ -1090,7 +1098,7 @@ document.addEventListener('click', ev=>{
   if(!document.getElementById('viewProp').classList.contains('active')) return;
   const t = ev.target;
   if(!t.isConnected) return;   // 図の再描画で押した部品が消えた場合は、閉じない（新しい○を置いた直後に閉じてしまうため）
-  if(!t.closest || t.closest('#propFormPanel, #propChartWrap, .prop-row, header, .prop-float')) return;
+  if(!t.closest || t.closest('#propFormPanel, #propChartWrap, .prop-row, .prop-palette, header, .prop-float')) return;
   closePropSheet();
 });
 
@@ -1100,13 +1108,29 @@ function renderPropList(){
   el.innerHTML = `<div class="prop-list-title">置いたペラ（${propVisible().length}）</div>` +
     propSorted().map(p=>`
       <div class="prop-row${p.id===propSel?' sel':''}" data-id="${escapeHtml(p.id)}">
-        <span class="prop-dot" style="background:${escapeHtml(safeColor(p.color, PROP_COLORS[0]))}"></span>
+        <button type="button" class="prop-dot" data-colorfor="${escapeHtml(p.id)}" aria-label="色を変える" style="background:${escapeHtml(safeColor(p.color, PROP_COLORS[0]))}"></button>
         <div class="prop-info">
           <div class="prop-name">${escapeHtml(p.name)}</div>
           ${p.note ? `<div class="prop-sub">${escapeHtml(p.note)}</div>` : ''}
         </div>
         <span class="prop-pos">${propQuadrant(p.x,p.y)}</span>
-      </div>`).join('');
+      </div>` + (p.id===propColorFor ? `<div class="prop-palette"><div class="prop-palette-title">色を選んでください</div><div class="prop-palette-grid">${
+        PROP_PALETTE.map(c=>`<button type="button" class="prop-swatch" data-pick="${c[1]}" data-pid="${escapeHtml(p.id)}"><span style="background:${c[1]}"></span>${c[0]}</button>`).join('')
+      }</div></div>` : '')).join('');
+  bind(el, '.prop-dot', 'click', ev=>{
+    ev.stopPropagation();
+    const id = ev.currentTarget.dataset.colorfor;
+    propColorFor = (propColorFor === id) ? null : id;
+    renderPropList();
+  });
+  bind(el, '.prop-swatch', 'click', async ev=>{
+    ev.stopPropagation();
+    const p = propPoints.find(x=>x.id===ev.currentTarget.dataset.pid); if(!p) return;
+    p.color = ev.currentTarget.dataset.pick;
+    propColorFor = null;
+    if(!(await savePropPoint(p))) return;
+    renderProp();
+  });
   bind(el, '.prop-row', 'click', ev=>{
     const id = ev.currentTarget.dataset.id;
     const p = propPoints.find(x=>x.id===id); if(!p) return;
