@@ -1138,6 +1138,7 @@ document.addEventListener('click', ev=>{
   if(!document.body.classList.contains('prop-sheet-open')) return;
   if(!document.getElementById('viewProp').classList.contains('active')) return;
   const t = ev.target;
+  if(!t.isConnected) return;   // 図の再描画で押した部品が消えた場合は、閉じない（新しい○を置いた直後に閉じてしまうため）
   if(!t.closest || t.closest('#propFormPanel, #propChartWrap, .prop-row, header, .prop-float')) return;
   closePropSheet();
 });
