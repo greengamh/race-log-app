@@ -396,6 +396,9 @@ let browsingVenue = null;
 
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function genId(p){ return p + Date.now() + Math.floor(Math.random()*1000); }
+/* 読み込んだファイルのid・色は、安全な文字だけ通す(画面の部品に埋め込まれるため) */
+function safeId(v){ const s = String(v==null?'':v); return /^[A-Za-z0-9_-]{1,64}$/.test(s) ? s : ''; }
+function safeColor(v, fallback){ const s = String(v==null?'':v); return /^#[0-9A-Fa-f]{3,8}$/.test(s) ? s : fallback; }
 function escapeHtml(s){
   return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -495,7 +498,7 @@ function rebuildFilters(){
   const curM = mSel.value;
   const months = [...new Set(setupEntries.map(e=>(e.date||'').slice(0,7)).filter(Boolean))].sort().reverse();
   mSel.innerHTML = '<option value="">全期間</option>' +
-    months.map(m=>{ const [y,mo]=m.split('-'); return `<option value="${m}">${y}年${Number(mo)}月</option>`; }).join('');
+    months.map(m=>{ const [y,mo]=m.split('-'); return `<option value="${escapeHtml(m)}">${escapeHtml(y)}年${Number(mo)||0}月</option>`; }).join('');
   mSel.value = months.includes(curM) ? curM : '';
 }
 
@@ -520,21 +523,21 @@ function entryCardHtml(e, q){
   if(temp) tags.push('🌡 '+temp);
   if(press) tags.push('📈 '+press);
   if(e.engine) tags.push('⚙️ '+e.engine);
-  return `<div class="setup-entry" data-id="${e.id}">
+  return `<div class="setup-entry" data-id="${escapeHtml(e.id)}">
     <div class="setup-head" data-stoggle="1">
       <div class="meta">
         <div class="title">${highlight(e.venue||'(レース場未設定)', q)}</div>
         <div class="sub">${escapeHtml(e.period || e.date || '日付未設定')}${e.engine?' ・ '+escapeHtml(e.engine):''}</div>
       </div>
-      <button class="prop-btn" type="button" data-prop="${e.id}">ペラ(${propPoints.filter(p=>p.memoId===e.id).length})</button>
+      <button class="prop-btn" type="button" data-prop="${escapeHtml(e.id)}">ペラ(${propPoints.filter(p=>p.memoId===e.id).length})</button>
       <div class="chevron">▼</div>
     </div>
     <div class="setup-body">
       ${tags.length?`<div style="margin-top:14px">${tags.map(t=>`<span class="tagline">${escapeHtml(t)}</span>`).join('')}</div>`:''}
       <div class="note-body">${renderBodyBlocks(e.body, q)}</div>
       <div class="entry-actions">
-        <button data-sedit="${e.id}">編集</button>
-        <button class="del" data-sdel="${e.id}">削除</button>
+        <button data-sedit="${escapeHtml(e.id)}">編集</button>
+        <button class="del" data-sdel="${escapeHtml(e.id)}">削除</button>
       </div>
     </div>
   </div>`;
@@ -1145,7 +1148,7 @@ function renderPropList(){
   el.innerHTML = `<div class="prop-list-title">置いたペラ（${propVisible().length}）</div>` +
     propSorted().map(p=>`
       <div class="prop-row${p.id===propSel?' sel':''}" data-id="${escapeHtml(p.id)}">
-        <span class="prop-dot" style="background:${p.color||PROP_COLORS[0]}"></span>
+        <span class="prop-dot" style="background:${escapeHtml(safeColor(p.color, PROP_COLORS[0]))}"></span>
         <div class="prop-info">
           <div class="prop-name">${escapeHtml(p.name)}</div>
           ${p.note ? `<div class="prop-sub">${escapeHtml(p.note)}</div>` : ''}
@@ -1251,7 +1254,7 @@ document.getElementById('propBackBtn').addEventListener('click', ()=>{
   if(ret.tab === 'venue' && ret.venue){ browsingVenue = ret.venue; renderVenueTab(); }
   renderSetup();                    // 「ペラ(n)」の数を更新
   const box = ret.tab === 'venue' ? '#venueDetailList' : '#setupListArea';
-  const card = document.querySelector(`${box} .setup-entry[data-id="${ret.memoId}"]`);
+  const card = document.querySelector(`${box} .setup-entry[data-id="${CSS.escape(String(ret.memoId))}"]`);
   if(card){ card.classList.add('open'); card.scrollIntoView({ block:'start' }); }
   propReturn = null;
 });
@@ -1312,19 +1315,20 @@ document.getElementById('backupInput').addEventListener('change', async (ev)=>{
 
     for(const raw of incoming){
       if(!raw || typeof raw !== 'object') continue;
-      if(raw.id && existingIds.has(raw.id)){ skipped++; continue; }
+      const rid = safeId(raw.id);
+      if(rid && existingIds.has(rid)){ skipped++; continue; }
       const entry = migrate({
-        id: raw.id || genId('s'),
-        body: raw.body || '',
-        venue: raw.venue || '',
-        period: raw.period || '',
-        date: raw.date || '',
-        engine: raw.engine || '',
-        temp: raw.temp || '',
-        press: raw.press || '',
-        prop: raw.prop || '',
-        maint: raw.maint || '',
-        createdAt: raw.createdAt || Date.now()
+        id: rid || genId('s'),
+        body: String(raw.body || ''),
+        venue: String(raw.venue || ''),
+        period: String(raw.period || ''),
+        date: String(raw.date || ''),
+        engine: String(raw.engine || ''),
+        temp: String(raw.temp || ''),
+        press: String(raw.press || ''),
+        prop: String(raw.prop || ''),
+        maint: String(raw.maint || ''),
+        createdAt: Number(raw.createdAt) || Date.now()
       });
       await window.storage.set('setup:'+entry.id, JSON.stringify(entry), false);
       setupEntries.push(entry);
@@ -1337,14 +1341,15 @@ document.getElementById('backupInput').addEventListener('change', async (ev)=>{
     const propIds = new Set(propPoints.map(p=>p.id));
     let propAdded = 0;
     for(const raw of incomingProps){
-      if(!raw || typeof raw !== 'object' || !raw.id || propIds.has(raw.id)) continue;
+      const pid = safeId(raw && raw.id);
+      if(!raw || typeof raw !== 'object' || !pid || propIds.has(pid)) continue;
       const p = {
-        id: String(raw.id), name: String(raw.name || 'ペラ'), note: String(raw.note || ''),
+        id: pid, name: String(raw.name || 'ペラ'), note: String(raw.note || ''),
         x: clampUnit(Number(raw.x) || 0), y: clampUnit(Number(raw.y) || 0),
-        color: raw.color || PROP_COLORS[propPoints.length % PROP_COLORS.length],
-        createdAt: raw.createdAt || Date.now()
+        color: safeColor(raw.color, PROP_COLORS[propPoints.length % PROP_COLORS.length]),
+        createdAt: Number(raw.createdAt) || Date.now()
       };
-      if(raw.memoId) p.memoId = String(raw.memoId);
+      if(safeId(raw.memoId)) p.memoId = safeId(raw.memoId);
       await window.storage.set('prop:'+p.id, JSON.stringify(p), false);
       propPoints.push(p); propIds.add(p.id); propAdded++;
     }
