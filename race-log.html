@@ -171,7 +171,17 @@
   #propSvg{display:block; width:100%; height:auto; touch-action:pan-y; transform-origin:0 0; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;}
   #propSvg .pp{cursor:grab;}
   /* 長押しで動かせる状態になった○は少し大きく見せる */
-  #propSvg .dragging circle{transform-box:fill-box; transform-origin:center; transform:scale(1.5);}
+  #propSvg .dragging circle{transform-box:fill-box; transform-origin:center; transform:scale(calc(1.5 * var(--inv, 1)));}
+  /* 図を拡大しても、文字・点・線の太さは画面上で同じ大きさのまま（--inv = 1 ÷ 拡大の倍率） */
+  #propSvg .pp circle, #propSvg .pd circle{transform-box:fill-box; transform-origin:center; transform:scale(var(--inv, 1));}
+  #propSvg text{transform-box:fill-box; transform:scale(var(--inv, 1)); transform-origin:center;}
+  /* 点と文字のすき間(図上で9)も、拡大しても同じ見た目の距離にする */
+  #propSvg text[text-anchor="start"]{transform-origin:left center; transform:translate(calc(-9px * (1 - var(--inv, 1)))) scale(var(--inv, 1));}
+  #propSvg text[text-anchor="end"]{transform-origin:right center; transform:translate(calc(9px * (1 - var(--inv, 1)))) scale(var(--inv, 1));}
+  #propSvg .sel-bg{transform-box:fill-box; transform:scale(var(--inv, 1));}
+  #propSvg .sel-bg[data-an="start"]{transform-origin:left center; transform:translate(calc(-9px * (1 - var(--inv, 1)))) scale(var(--inv, 1));}
+  #propSvg .sel-bg[data-an="end"]{transform-origin:right center; transform:translate(calc(9px * (1 - var(--inv, 1)))) scale(var(--inv, 1));}
+  #propSvg > line, #propSvg > rect{vector-effect:non-scaling-stroke;}
   /* 動かしている間の拡大窓 */
   #propLoupe{
     position:fixed; z-index:60; display:none; pointer-events:none;
@@ -993,6 +1003,7 @@ function applyPropZoom(){
   z.y = Math.max(H*(1-z.s), Math.min(0, z.y));
   if(z.s <= 1.001){ z.s = 1; z.x = 0; z.y = 0; }
   svg.style.transform = z.s === 1 ? '' : `translate(${z.x}px,${z.y}px) scale(${z.s})`;
+  svg.style.setProperty('--inv', String(1 / z.s));
   z.applied = z.s;
   let btn = wrap.querySelector('.zoom-reset');
   if(z.s > 1){
@@ -1218,6 +1229,8 @@ function propSelLabelBg(){
     const b = txt.getBBox();
     bg.setAttribute('x', b.x-2); bg.setAttribute('y', b.y-1);
     bg.setAttribute('width', b.width+4); bg.setAttribute('height', b.height+2);
+    const an = txt.getAttribute('text-anchor');   // 文字と同じ端を基準に縮める
+    bg.setAttribute('data-an', an || 'middle');
   }catch(e){}
 }
 
