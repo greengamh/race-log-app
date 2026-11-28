@@ -86,6 +86,13 @@
     color:var(--foam); border-radius:8px; padding:10px 12px;
     font-family:'Noto Sans JP'; font-size:16px;
   }
+  /* iPhoneの日付欄は、そのままだと枠からはみ出して隣の欄に重なるため、幅と高さをそろえる */
+  .row2 > .field{min-width:0;}
+  input[type=date]{
+    display:block; min-width:0; max-width:100%; box-sizing:border-box;
+    -webkit-appearance:none; appearance:none; height:46px; line-height:1.4; text-align:left;
+  }
+  input[type=date]::-webkit-date-and-time-value{text-align:left; min-height:1.4em;}
   input:focus, select:focus, textarea:focus{outline:none; border-color:var(--buoy-gold);}
   textarea{resize:vertical; min-height:60px; line-height:1.8;}
 
@@ -159,8 +166,9 @@
   body.prop-sheet-open #propSvg{width:auto; height:var(--prop-chart-h, auto); max-width:100%; margin:0 auto;}
   .prop-float{position:fixed; top:10px; right:14px; z-index:50; margin:0; background:rgba(255,255,255,0.97); box-shadow:0 2px 10px var(--shadow);}
   .prop-hint{font-size:13px; color:var(--foam-dim); line-height:1.7; margin:6px 2px 0;}
-  .chart-wrap{background:var(--water-card); border:1px solid var(--water-line); border-radius:14px; padding:8px; margin:12px 0 16px;}
-  #propSvg{display:block; width:100%; height:auto; touch-action:manipulation; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;}
+  .chart-wrap{background:var(--water-card); border:1px solid var(--water-line); border-radius:14px; padding:8px; margin:12px 0 16px; position:relative; overflow:hidden;}
+  .zoom-reset{position:absolute; left:8px; top:8px; z-index:5; padding:6px 10px; font-size:12px; border-radius:8px; border:1px solid var(--buoy-gold); background:rgba(255,255,255,0.95); color:var(--buoy-gold); cursor:pointer;}
+  #propSvg{display:block; width:100%; height:auto; touch-action:pan-y; transform-origin:0 0; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;}
   #propSvg .pp{cursor:grab;}
   /* 長押しで動かせる状態になった○は少し大きく見せる */
   #propSvg .dragging circle{transform-box:fill-box; transform-origin:center; transform:scale(1.5);}
@@ -967,7 +975,67 @@ function renderPropChart(){
   document.getElementById('propChartWrap').innerHTML = s;
   propSelLabelBg();
   bindPropChart();
+  propZoom.applied = 1;   // 描き直した図は、まだ倍率がかかっていない
+  applyPropZoom();
 }
+
+/* 2本指で図を拡大・縮小（ピンチ）。拡大中は、2本指を動かすと図が動く */
+const PROP_ZOOM_MAX = 4;
+const propZoom = { s:1, x:0, y:0 };
+function applyPropZoom(){
+  const wrap = document.getElementById('propChartWrap');
+  const svg = document.getElementById('propSvg'); if(!svg) return;
+  const z = propZoom;
+  z.s = Math.max(1, Math.min(PROP_ZOOM_MAX, z.s));
+  const rr = svg.getBoundingClientRect();           // 今の見かけの大きさ ÷ 今かかっている倍率 = 拡大前の大きさ
+  const W = rr.width / (z.applied || 1), H = rr.height / (z.applied || 1);
+  z.x = Math.max(W*(1-z.s), Math.min(0, z.x));    // 図の外が見えないように抑える
+  z.y = Math.max(H*(1-z.s), Math.min(0, z.y));
+  if(z.s <= 1.001){ z.s = 1; z.x = 0; z.y = 0; }
+  svg.style.transform = z.s === 1 ? '' : `translate(${z.x}px,${z.y}px) scale(${z.s})`;
+  z.applied = z.s;
+  let btn = wrap.querySelector('.zoom-reset');
+  if(z.s > 1){
+    if(!btn){
+      btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'zoom-reset'; btn.textContent = '拡大をもどす';
+      btn.addEventListener('click', ()=>{ propZoom.s = 1; applyPropZoom(); });
+      wrap.appendChild(btn);
+    }
+  }else if(btn){ btn.remove(); }
+}
+(function bindPropPinch(){
+  const wrap = document.getElementById('propChartWrap');
+  let p = null;   // { d0, s0, x0, y0, c0 }
+  const dist = t=>Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
+  const center = t=>({x:(t[0].clientX+t[1].clientX)/2, y:(t[0].clientY+t[1].clientY)/2});
+  wrap.addEventListener('touchstart', ev=>{
+    if(ev.touches.length !== 2) return;
+    const svg = document.getElementById('propSvg'); if(!svg) return;
+    p = { d0:dist(ev.touches), s0:propZoom.s, x0:propZoom.x, y0:propZoom.y, c0:center(ev.touches) };
+    propLoupeHide();
+  }, {passive:true});
+  wrap.addEventListener('touchmove', ev=>{
+    if(!p || ev.touches.length !== 2) return;
+    const svg = document.getElementById('propSvg'); if(!svg) return;
+    if(ev.cancelable) ev.preventDefault();
+    const r = svg.getBoundingClientRect();
+    const baseL = r.left - propZoom.x, baseT = r.top - propZoom.y;   // 拡大前の図の左上（画面上の位置）
+    const c = center(ev.touches);
+    const s = Math.max(1, Math.min(PROP_ZOOM_MAX, p.s0 * dist(ev.touches) / p.d0));
+    // 最初に2本指の真ん中にあった図の点が、今の2本指の真ん中に来るようにする
+    const ux = (p.c0.x - baseL - p.x0) / p.s0, uy = (p.c0.y - baseT - p.y0) / p.s0;
+    propZoom.s = s;
+    propZoom.x = c.x - baseL - ux*s;
+    propZoom.y = c.y - baseT - uy*s;
+    applyPropZoom();
+  }, {passive:false});
+  const done = ev=>{
+    if(p && ev.touches.length < 2){ p = null; propLastTouch = Date.now(); }   // 指を離した直後の誤タップで点を置かない
+  };
+  wrap.addEventListener('touchend', done);
+  wrap.addEventListener('touchcancel', done);
+})();
 
 function propPointFromEvent(svg, ev){
   const r = svg.getBoundingClientRect();
@@ -1090,6 +1158,7 @@ function propLongPressDrag(g, h){
 /* 拡大窓: 動かしている○とその周りを、指の少し上に大きく映す */
 const PROP_LOUPE_ZOOM = 2;   // 拡大の倍率
 const PROP_LOUPE_SIZE = 130;   // 窓の大きさ（px）
+const PROP_LOUPE_GAP = 100;    // 指から窓の中心までの上への距離（px）
 function propLoupeShow(pt){
   const svg = document.getElementById('propSvg'); if(!svg) return;
   let lp = document.getElementById('propLoupe');
@@ -1106,12 +1175,9 @@ function propLoupeShow(pt){
   lp.innerHTML = `<svg viewBox="${cx-span/2} ${cy-span/2} ${span} ${span}" width="${PROP_LOUPE_SIZE}" height="${PROP_LOUPE_SIZE}">` +
     `<rect x="-50" y="-50" width="300" height="300" fill="${cssVar('--water-card')}"/>` + svg.innerHTML + `</svg>` +
     `<span class="lp-h"></span><span class="lp-v"></span>`;
-  // 置き場所: 指の上。上の見出し部分に隠れるときは、指の横
-  const head = document.querySelector('header');
-  const topLimit = (head ? head.getBoundingClientRect().bottom : 0) + 6;
+  // 置き場所: いつも指の真上（横にずらさない）。画面の左右の端だけは、はみ出さないように内側へ寄せる
   const half = PROP_LOUPE_SIZE / 2;
-  let x = pt.clientX, y = pt.clientY - 110;
-  if(y - half < topLimit){ y = Math.max(topLimit + half, pt.clientY); x = pt.clientX + (pt.clientX < window.innerWidth/2 ? 110 : -110); }
+  let x = pt.clientX, y = Math.max(half + 4, pt.clientY - PROP_LOUPE_GAP);
   x = Math.max(half + 4, Math.min(window.innerWidth - half - 4, x));
   lp.style.left = (x - half) + 'px';
   lp.style.top = (y - half) + 'px';
